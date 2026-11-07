@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="theme-color" content="#070b13">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Attention SMOTE: Data augmentation with a learnable interpolation factor for imbalanced anomaly detection of gas turbines — project page</title>
+<meta name="description" content="DA-SMOTE-ED learns a class-separable latent space and a per-pair interpolation factor for imbalanced gas-turbine anomaly detection. 91.77% balanced accuracy on real turbine data; 92.83% on C-MAPPS.">
+<meta property="og:title" content="Deep Attention SMOTE — teach SMOTE where to land">
+<meta property="og:description" content="A learnable interpolation factor that keeps synthetic faults out of the danger area. 91.77% balanced accuracy on real gas-turbine data.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="images/fig1-sampling-strategies.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b15'/%3E%3Ccircle cx='10' cy='20' r='3' fill='%235b94ff'/%3E%3Ccircle cx='22' cy='11' r='3' fill='%23ff486b'/%3E%3Ccircle cx='21' cy='23' r='3' fill='%232dd4ee'/%3E%3Cpath d='M13 18L19 13M12 22L18 23' stroke='%23a8b0c4' stroke-width='1.4'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06070d; --bg-2:#090b15; --bg-3:#0c0f1b;
+  --ink:#f3f5fb; --muted:#a8b0c4; --faint:#7c869c; --faintest:#5e687e;
+  --surface:rgba(255,255,255,.03); --surface-2:rgba(255,255,255,.055);
+  --border:rgba(255,255,255,.09); --border-lit:rgba(255,255,255,.2);
+  --cyan:#2dd4ee; --blue:#5b94ff; --green:#1ed16f; --amber:#ffb13d; --red:#ff486b; --violet:#9d7cff;
+  --r:16px; --r-lg:24px; --maxw:1300px;
+  --shadow:0 2px 6px rgba(0,0,0,.4),0 26px 64px -30px rgba(0,0,0,.9);
+  --font-disp:"Space Grotesk",system-ui,sans-serif;
+  --font-body:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; overflow-x:clip}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-body);
+  line-height:1.7; font-size:16px; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; overflow-x:hidden}
+a{color:inherit; text-decoration:none}
+img{display:block; max-width:100%}
+::selection{background:rgba(45,212,238,.3); color:#fff}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* background */
+.bgfx{position:fixed; inset:0; z-index:-2; overflow:hidden; pointer-events:none}
+.blob{position:absolute; border-radius:50%; filter:blur(95px); mix-blend-mode:screen}
+.b1{width:760px;height:760px; left:-200px; top:-260px; background:radial-gradient(circle,#2456ff,transparent 65%); opacity:.38; animation:drift1 28s ease-in-out infinite}
+.b2{width:680px;height:680px; right:-220px; top:-140px; background:radial-gradient(circle,#7a2bff,transparent 65%); opacity:.3; animation:drift2 32s ease-in-out infinite}
+.b3{width:620px;height:620px; left:31%; top:39%; background:radial-gradient(circle,#00bcd6,transparent 66%); opacity:.17; animation:drift3 36s ease-in-out infinite}
+.b4{width:520px;height:520px; right:4%; bottom:-190px; background:radial-gradient(circle,#ff3d6e,transparent 66%); opacity:.12; animation:drift1 40s ease-in-out infinite reverse}
+@keyframes drift1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,50px) scale(1.12)}}
+@keyframes drift2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-50px,70px) scale(1.08)}}
+@keyframes drift3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(40px,-50px) scale(1.15)}}
+.grid-overlay{position:fixed; inset:0; z-index:-2; pointer-events:none;
+  background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px); background-size:36px 36px;
+  -webkit-mask-image:radial-gradient(120% 75% at 50% 0%,#000 28%,transparent 72%);
+  mask-image:radial-gradient(120% 75% at 50% 0%,#000 28%,transparent 72%); opacity:.44}
+.grain{position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* layout */
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 26px}
+section{position:relative; padding:112px 0}
+section[id]{scroll-margin-top:78px}
+.eyebrow{font-family:var(--font-mono); font-size:12px; font-weight:500; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--muted); display:inline-flex; align-items:center; gap:10px}
+.eyebrow::before{content:""; width:24px; height:2px; border-radius:2px; background:var(--ac,var(--cyan)); flex:none}
+.eyebrow .vol{white-space:nowrap}
+h2{font-family:var(--font-disp); font-weight:700; font-size:clamp(28px,4vw,46px); line-height:1.12;
+  letter-spacing:-.015em; margin:18px 0 16px; text-wrap:balance}
+.lead{color:var(--muted); font-size:clamp(15px,1.5vw,18px); line-height:1.75; margin:0; max-width:65ch; text-wrap:pretty}
+.uline{background:linear-gradient(var(--ac,var(--cyan)),var(--ac,var(--cyan))) no-repeat left bottom/100% 2px; padding-bottom:2px}
+.mono{font-family:var(--font-mono)}
+.small{font-size:13px; color:var(--faint)}
+
+/* nav */
+nav{position:fixed; top:0; left:0; right:0; z-index:50; transition:.3s ease}
+.navin{max-width:1360px; margin:0 auto; padding:16px 32px; display:flex; align-items:center; justify-content:space-between; gap:18px}
+nav.scrolled{background:rgba(8,9,16,.74); backdrop-filter:blur(16px) saturate(140%); -webkit-backdrop-filter:blur(16px) saturate(140%); border-bottom:1px solid var(--border)}
+nav.scrolled .navin{padding:11px 26px}
+.brand{display:flex; align-items:center; gap:11px; font-family:var(--font-disp); font-weight:700; font-size:18px; letter-spacing:-.01em; white-space:nowrap}
+.brand .mark{width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:#0b0f1b; border:1px solid var(--border-lit)}
+.brand .mark svg{width:20px;height:20px}
+.brand b{color:var(--cyan)}
+.navlinks{display:flex; align-items:center; gap:28px; font-size:14px; color:var(--muted)}
+.navlinks a{transition:color .15s} .navlinks a:hover{color:var(--ink)}
+.ghbtn{display:inline-flex; align-items:center; gap:8px; padding:8px 15px; border:1px solid var(--border-lit);
+  border-radius:10px; color:var(--ink); font-weight:500; transition:.18s; white-space:nowrap}
+.ghbtn:hover{background:var(--surface-2); border-color:rgba(255,255,255,.32); transform:translateY(-1px)}
+.ghbtn svg{width:16px;height:16px}
+@media(max-width:860px){.navlinks a:not(.ghbtn){display:none}}
+
+/* hero */
+.hero{padding:154px 0 76px; position:relative; overflow:hidden}
+.heroin{display:grid; grid-template-columns:1.04fr .96fr; gap:48px; align-items:center}
+.paperline{font-family:var(--font-mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin:0 0 16px}
+.paperline b{color:var(--muted); font-weight:500}
+.hero h1{font-family:var(--font-disp); font-weight:700; font-size:clamp(38px,5.2vw,70px); line-height:1.04;
+  letter-spacing:-.035em; margin:0 0 22px; text-wrap:balance}
+.hero h1 .hl{background:linear-gradient(180deg,#fff 34%,#8cefff); -webkit-background-clip:text; background-clip:text; color:transparent}
+.hero .sub{color:var(--muted); font-size:clamp(16px,1.6vw,18.5px); line-height:1.72; max-width:50ch; margin:0 0 18px}
+.hero .sub b{color:var(--ink); font-weight:500}
+.claimline{font-family:var(--font-mono); font-size:12px; color:var(--faint); letter-spacing:.015em; margin:0 0 26px; line-height:1.75}
+.claimline b{color:var(--cyan); font-weight:500}
+.cta{display:flex; gap:13px; flex-wrap:wrap}
+.btn{display:inline-flex; align-items:center; gap:9px; padding:13px 22px; border-radius:12px;
+  font-family:var(--font-body); font-weight:600; font-size:14.8px; border:1px solid transparent; cursor:pointer; transition:.18s ease}
+.btn svg{width:17px;height:17px}
+.btn-primary{color:#04111f; background:linear-gradient(180deg,#fff,#d8f9ff); box-shadow:0 10px 34px -10px rgba(45,212,238,.65), inset 0 1px 0 rgba(255,255,255,.8)}
+.btn-primary:hover{transform:translateY(-2px); box-shadow:0 16px 42px -12px rgba(45,212,238,.9)}
+.btn-ghost{color:var(--ink); background:var(--surface); border-color:var(--border-lit); backdrop-filter:blur(8px)}
+.btn-ghost:hover{background:var(--surface-2); border-color:rgba(255,255,255,.34); transform:translateY(-2px)}
+.herostats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-top:32px; padding-top:24px; border-top:1px solid var(--border)}
+.hstat b{display:block; font-family:var(--font-disp); font-weight:700; font-size:27px; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+.hstat span{display:block; margin-top:7px; font-size:11.8px; color:var(--faint); letter-spacing:.02em}
+.hstat.s1 b{color:var(--cyan)}.hstat.s2 b{color:var(--green)}.hstat.s3 b{color:var(--amber)}.hstat.s4 b{color:var(--blue)}
+.authorline{margin:22px 0 0; font-size:12.5px; line-height:1.8; color:var(--faint)}
+.authorline b{color:var(--muted); font-weight:500}
+.authorline span{display:block; margin-top:4px; font-family:var(--font-mono); font-size:10.5px; color:var(--faintest); letter-spacing:.02em}
+
+.herovis{position:relative; min-width:0}
+.herovis .pglow{position:absolute; inset:-12%; z-index:0; filter:blur(62px); opacity:.7;
+  background:radial-gradient(circle at 40% 42%, rgba(45,212,238,.36), transparent 58%), radial-gradient(circle at 74% 68%, rgba(255,72,107,.24), transparent 60%)}
+.latent-card{position:relative; z-index:1; border-radius:24px; overflow:hidden; border:1px solid var(--border-lit);
+  background:#080b14; box-shadow:var(--shadow)}
+.latent-card svg{display:block; width:100%; height:auto}
+.fig-note{margin:12px 2px 0; font-family:var(--font-mono); font-size:10.5px; color:var(--faintest); letter-spacing:.03em; display:flex; gap:8px; align-items:center}
+.fig-note::before{content:""; width:6px;height:6px;border-radius:50%;background:var(--cyan); box-shadow:0 0 12px var(--cyan); flex:none}
+
+.statband{max-width:920px; margin:64px auto 0; display:grid; grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border); border-bottom:1px solid var(--border)}
+.stat{padding:22px 10px; text-align:center; border-right:1px solid var(--border)}
+.stat:last-child{border-right:none}
+.stat b{display:block; font-family:var(--font-disp); font-weight:700; font-size:34px; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+.stat span{display:block; margin-top:6px; font-size:11.8px; color:var(--faint); letter-spacing:.03em}
+.stat.s1 b{color:var(--cyan)}.stat.s2 b{color:var(--green)}.stat.s3 b{color:var(--amber)}.stat.s4 b{color:var(--blue)}
+
+/* abstract */
+.abstract-grid{display:grid; grid-template-columns:.82fr 1.18fr; gap:64px; align-items:start}
+.abstract-body p{color:var(--muted); font-size:16.5px; line-height:1.82; margin:0 0 18px}
+.abstract-body p:last-of-type{margin-bottom:0}
+.keywords{display:flex; flex-wrap:wrap; gap:8px; margin-top:24px}
+.kw{font-family:var(--font-mono); font-size:11px; color:var(--faint); border:1px solid var(--border); background:var(--surface); padding:4px 9px; border-radius:999px}
+.claim-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:48px}
+.claim{border-radius:var(--r-lg); overflow:hidden; border:1px solid var(--border); background:linear-gradient(180deg,var(--surface-2),var(--surface));
+  transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.claim:hover{transform:translateY(-4px); border-color:color-mix(in srgb,var(--cc) 52%,transparent); box-shadow:0 28px 60px -36px var(--cc)}
+.claim-art{position:relative; aspect-ratio:16/7; background:#080b14; border-bottom:1px solid var(--border); overflow:hidden}
+.claim-art::before{content:""; position:absolute; inset:0; background:radial-gradient(circle at 50% 40%, color-mix(in srgb,var(--cc) 22%,transparent), transparent 68%)}
+.claim-art svg{position:absolute; inset:0; width:100%; height:100%}
+.claim-body{padding:17px 19px 20px; display:flex; flex-direction:column; flex:1}
+.claim-top{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+.claim-num{font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; color:var(--cc); border:1px solid color-mix(in srgb,var(--cc) 38%,transparent); background:color-mix(in srgb,var(--cc) 9%,transparent); border-radius:5px; padding:2px 6px}
+.claim h3{margin:0; font-family:var(--font-disp); font-size:17px; font-weight:600; letter-spacing:-.01em}
+.claim p{margin:0; color:var(--muted); font-size:13.4px; line-height:1.65}
+.claim-cc1{--cc:var(--blue)}.claim-cc2{--cc:var(--cyan)}.claim-cc3{--cc:var(--red)}.claim-cc4{--cc:var(--green)}
+
+/* problem */
+#problem{background:linear-gradient(180deg,transparent,var(--bg-2) 16%,var(--bg-2) 84%,transparent)}
+.problem-grid{display:grid; grid-template-columns:1.02fr .98fr; gap:54px; align-items:start; margin-top:38px}
+.problem-list{margin-top:28px}
+.problem-row{display:grid; grid-template-columns:100px 1fr; gap:20px; padding:19px 0; border-top:1px solid var(--border); align-items:start}
+.problem-row:last-child{border-bottom:1px solid var(--border)}
+.problem-num{font-family:var(--font-disp); font-size:22px; font-weight:600; letter-spacing:-.02em; color:var(--pc,var(--cyan)); line-height:1.2}
+.problem-row h3{margin:0 0 5px; font-size:15.5px; font-weight:600}
+.problem-row p{margin:0; color:var(--muted); font-size:13.7px; line-height:1.65}
+.problem-row.pc1{--pc:var(--amber)}.problem-row.pc2{--pc:var(--red)}.problem-row.pc3{--pc:var(--cyan)}
+.plate{position:relative; border-radius:18px; overflow:hidden; border:1px solid var(--border-lit); background:#0a0c15; box-shadow:var(--shadow)}
+.plate-bar{display:flex; align-items:center; gap:8px; padding:10px 13px; background:#0d1020; border-bottom:1px solid var(--border)}
+.dotrow{display:flex; gap:6px}.dotrow i{width:8px;height:8px;border-radius:50%;display:block}
+.dotrow i:nth-child(1){background:#ff5f57}.dotrow i:nth-child(2){background:#febc2e}.dotrow i:nth-child(3){background:#28c840}
+.plate-bar span{margin-left:6px; font-family:var(--font-mono); font-size:10.5px; letter-spacing:.06em; color:var(--faint)}
+.plate-body{background:#fff}
+.plate img{width:100%; height:auto; display:block}
+.figcap{margin:12px 2px 0; color:var(--faint); font-size:12px; line-height:1.65}
+.figcap b{color:var(--muted); font-weight:500}
+
+/* method */
+.method-grid{display:grid; grid-template-columns:.92fr 1.08fr; gap:50px; align-items:start; margin-top:46px}
+.steps{position:relative}
+.step{display:grid; grid-template-columns:38px 1fr; gap:17px; padding:0 0 27px; position:relative}
+.step:not(:last-child)::before{content:""; position:absolute; left:18px; top:38px; bottom:0; width:1px; background:linear-gradient(var(--border-lit),var(--border))}
+.step-n{width:37px;height:37px;border-radius:50%;display:grid;place-items:center;background:#0b0f1b;border:1px solid var(--border-lit);
+  font-family:var(--font-mono);font-size:11px;color:var(--cyan);z-index:1}
+.step h3{margin:5px 0 7px; font-family:var(--font-disp); font-size:19px; font-weight:600; letter-spacing:-.01em}
+.step p{margin:0; color:var(--muted); font-size:14px; line-height:1.7; max-width:48ch}
+.chips{display:flex; flex-wrap:wrap; gap:7px; margin-top:11px}
+.chip{font-family:var(--font-mono); font-size:10.5px; color:var(--faint); border:1px solid var(--border); background:var(--surface); padding:3px 8px; border-radius:6px}
+.tall-stage{position:sticky; top:94px}
+.cls-grid{display:grid; grid-template-columns:.95fr 1.05fr; gap:46px; align-items:center; margin-top:62px; padding-top:48px; border-top:1px solid var(--border)}
+.cls-copy h3{font-family:var(--font-disp); font-size:clamp(21px,2.4vw,29px); line-height:1.18; letter-spacing:-.015em; margin:0 0 12px}
+.cls-copy p{color:var(--muted); font-size:14.5px; line-height:1.72; margin:0 0 16px}
+.cls-points{display:grid; gap:9px}
+.cls-point{display:flex; gap:10px; align-items:flex-start; font-size:13.2px; color:var(--muted); line-height:1.6}
+.cls-point b{color:var(--ink); font-weight:500}
+.cls-point::before{content:""; width:5px;height:5px;border-radius:50%;background:var(--cyan);margin-top:8px;flex:none;box-shadow:0 0 9px rgba(45,212,238,.7)}
+
+/* attention */
+#attention{background:radial-gradient(900px 520px at 22% 10%, rgba(45,212,238,.055), transparent 70%)}
+.attention-grid{display:grid; grid-template-columns:.82fr 1.18fr; gap:54px; align-items:center; margin-top:42px}
+.mathcard{border:1px solid var(--border); border-radius:var(--r-lg); background:linear-gradient(155deg,rgba(45,212,238,.07),transparent 52%),#0a0c16; overflow:hidden; box-shadow:var(--shadow)}
+.math-head{display:flex; justify-content:space-between; gap:14px; padding:14px 19px; border-bottom:1px solid var(--border); font-family:var(--font-mono); font-size:10.5px; letter-spacing:.08em; color:var(--faint); text-transform:uppercase}
+.math-head b{color:var(--cyan); font-weight:500}
+.eq{padding:21px 22px 8px}
+.eqline{font-family:var(--font-disp); font-size:clamp(16px,1.7vw,20px); color:#e9f8ff; line-height:1.9; letter-spacing:.01em; margin:0 0 10px; white-space:nowrap; overflow-x:auto; padding-bottom:2px}
+.eqline:last-child{margin-bottom:0}
+.eqline .op{color:var(--faint)}
+.eqline .hi{color:var(--cyan)}
+.eqline sub{font-size:.62em}
+.math-note{padding:4px 22px 20px; color:var(--faint); font-size:12.2px; line-height:1.65}
+.loss-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px}
+.loss{border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:16px 17px}
+.loss .lk{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint)}
+.loss .lv{font-family:var(--font-disp); font-size:15px; color:var(--ink); margin:7px 0 5px; line-height:1.5}
+.loss p{margin:0; font-size:12.3px; color:var(--faint); line-height:1.55}
+
+/* results */
+.metric-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:42px}
+.metric{border:1px solid var(--border); border-radius:var(--r); background:linear-gradient(180deg,var(--surface-2),var(--surface)); padding:20px 19px 18px; position:relative; overflow:hidden}
+.metric::after{content:""; position:absolute; left:0; right:0; top:0; height:2px; background:var(--mc)}
+.metric span{display:block; font-family:var(--font-mono); font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--faint)}
+.metric b{display:block; margin:10px 0 5px; font-family:var(--font-disp); font-size:38px; line-height:1; letter-spacing:-.03em; color:var(--mc); font-variant-numeric:tabular-nums}
+.metric b small{font-size:17px; letter-spacing:0; margin-left:2px}
+.metric p{margin:0; font-size:12px; color:var(--faint); line-height:1.55}
+.metric.m1{--mc:var(--cyan)}.metric.m2{--mc:var(--green)}.metric.m3{--mc:var(--amber)}.metric.m4{--mc:var(--blue)}
+.results-split{display:grid; grid-template-columns:.95fr 1.05fr; gap:20px; margin-top:20px; align-items:stretch}
+.results-split .tradeoff{margin-top:0; height:100%; grid-template-columns:1fr; align-content:center; gap:24px; border:1px solid var(--border); border-left:2px solid var(--amber); border-radius:var(--r-lg)}
+.table-card .panel-head{padding-bottom:2px}
+.panel{border:1px solid var(--border); border-radius:var(--r-lg); background:linear-gradient(180deg,var(--surface-2),var(--surface)); overflow:hidden}
+.panel-head{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 19px 0; font-family:var(--font-mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint)}
+.panel-head b{color:var(--muted); font-weight:500}
+.chart{padding:17px 19px 16px}
+.bar-row{display:grid; grid-template-columns:124px 1fr 52px; gap:11px; align-items:center; margin:12px 0}
+.bar-label{font-family:var(--font-mono); font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bar-track{height:7px; border-radius:99px; background:rgba(255,255,255,.055); position:relative; overflow:hidden}
+.bar-track::after{content:""; position:absolute; inset:0; background-image:linear-gradient(90deg,rgba(255,255,255,.09) 1px,transparent 1px); background-size:20% 100%; opacity:.6}
+.bar-fill{height:100%; width:var(--w); border-radius:99px; background:var(--bc); position:relative; z-index:1; transform-origin:left; animation:grow 1.1s cubic-bezier(.2,.7,.2,1) both}
+.bar-row.ours .bar-fill{background:linear-gradient(90deg,var(--blue),var(--cyan)); box-shadow:0 0 18px rgba(45,212,238,.45)}
+.bar-row.ours .bar-label{color:var(--ink)}
+.bar-val{font-family:var(--font-mono); font-size:10.5px; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums}
+.bar-row.ours .bar-val{color:var(--cyan)}
+.bar-axis{display:grid; grid-template-columns:124px 1fr 52px; gap:11px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border)}
+.bar-axis .ticks{display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:9px; color:var(--faintest)}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.chart-note{padding:0 19px 18px; color:var(--faintest); font-size:10.5px; line-height:1.55}
+
+.table-card{margin:20px 0 0; border:1px solid var(--border); border-radius:var(--r-lg); background:linear-gradient(180deg,var(--surface-2),var(--surface)); overflow:hidden}
+.table-card .table-head{padding-top:10px}
+.table-head{display:flex; justify-content:space-between; gap:16px; align-items:flex-end; padding:17px 19px 13px}
+.table-head .table-cap{font-size:12.5px; line-height:1.55; color:var(--faint); max-width:760px; margin:0}
+.table-head .table-cap b{color:var(--muted); font-weight:600}
+.table-tag{font-family:var(--font-mono); font-size:10px; color:var(--faint); white-space:nowrap; letter-spacing:.06em}
+.table-scroll{overflow-x:auto; padding:0 8px 8px}
+table{border-collapse:collapse; width:100%; min-width:540px; font-size:12.2px}
+th,td{text-align:right; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.055); white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-family:var(--font-mono); font-size:9.5px; font-weight:500; letter-spacing:.055em; text-transform:uppercase; color:var(--faint); border-bottom:1px solid var(--border-lit); vertical-align:bottom}
+tbody td{color:var(--muted); font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:none}
+tbody tr.ours td{color:var(--ink); background:rgba(45,212,238,.07); font-weight:600}
+tbody tr.ours td:first-child{box-shadow:inset 2px 0 0 var(--cyan)}
+td:first-child, th:first-child{position:sticky; left:0; z-index:2; background:#0a0c16}
+tbody tr.ours td:first-child{background:#0b1a20}
+.table-note{padding:0 19px 15px; color:var(--faintest); font-size:10.5px; line-height:1.55}
+.tradeoff{display:grid; grid-template-columns:1.15fr .85fr; gap:28px; align-items:center; margin-top:20px; padding:25px 26px; border:1px solid var(--border); border-left:2px solid var(--amber); border-radius:0 var(--r) var(--r) 0; background:linear-gradient(90deg,rgba(255,177,61,.055),transparent 55%)}
+.tradeoff h3{margin:0 0 7px; font-family:var(--font-disp); font-size:20px; letter-spacing:-.01em}
+.tradeoff p{margin:0; color:var(--muted); font-size:13.3px; line-height:1.68}
+.deltas{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+.delta{border-left:1px solid var(--border); padding-left:12px}
+.delta b{display:block; font-family:var(--font-disp); font-size:21px; line-height:1.1; font-variant-numeric:tabular-nums}
+.delta span{display:block; margin-top:4px; font-size:10.5px; color:var(--faint)}
+.delta.up b{color:var(--green)}.delta.down b{color:var(--amber)}.delta.acc b{color:var(--cyan)}
+
+/* evidence */
+#evidence{background:linear-gradient(180deg,transparent,var(--bg-2) 14%,var(--bg-2) 86%,transparent)}
+.exhibit{display:grid; grid-template-columns:1fr 1fr; gap:52px; align-items:center; margin-top:54px}
+.exhibit:first-of-type{margin-top:38px}
+.exhibit.flip .art{order:2}
+.exhibit .copy .tag{font-family:var(--font-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ec)}
+.exhibit .copy h3{font-family:var(--font-disp); font-weight:600; font-size:clamp(22px,2.4vw,30px); letter-spacing:-.015em; margin:12px 0 11px; line-height:1.18; text-wrap:balance}
+.exhibit .copy p{color:var(--muted); font-size:14.6px; line-height:1.74; margin:0 0 16px}
+.pills{display:flex; flex-wrap:wrap; gap:8px}
+.pill{font-size:11.5px; padding:4px 11px; border-radius:100px; border:1px solid var(--border); color:var(--muted); background:var(--surface)}
+.pill::before{content:""; display:inline-block; width:5px;height:5px;border-radius:50%; background:var(--ec); margin-right:7px; vertical-align:middle}
+
+.second-data{margin-top:58px; border:1px solid var(--border); border-radius:var(--r-lg); background:linear-gradient(135deg,rgba(30,209,111,.055),transparent 52%),var(--surface); padding:30px; display:grid; grid-template-columns:.78fr 1.22fr; gap:34px; align-items:center}
+.sd-num{font-family:var(--font-disp); font-size:clamp(46px,5.6vw,72px); font-weight:700; line-height:.95; letter-spacing:-.04em; color:var(--green); font-variant-numeric:tabular-nums}
+.sd-num small{font-size:.36em; letter-spacing:-.01em; color:var(--muted); font-weight:500}
+.sd-copy .tag{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--green)}
+.sd-copy h3{font-family:var(--font-disp); font-size:clamp(21px,2.3vw,27px); line-height:1.2; letter-spacing:-.015em; margin:9px 0 8px}
+.sd-copy p{color:var(--muted); font-size:13.5px; line-height:1.7; margin:0 0 14px}
+.mini-table{width:100%; border-collapse:collapse; font-size:11.5px; min-width:0}
+.mini-table th,.mini-table td{padding:7px 8px; font-size:11.2px}
+.mini-table thead th{font-size:9px}
+.mini-table tbody tr.ours td{background:rgba(30,209,111,.08)}
+.mini-table tbody tr.ours td:first-child{background:#0b1714; box-shadow:inset 2px 0 0 var(--green)}
+.mini-table td:first-child,.mini-table th:first-child{position:static; background:transparent}
+.mini-table tbody tr.ours td:first-child{background:#0b1714}
+.sweep{margin-top:38px; border:1px solid var(--border); border-radius:var(--r-lg); background:var(--surface); padding:22px 24px}
+.sweep-head{display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; align-items:baseline; margin-bottom:16px}
+.sweep-head h3{margin:0; font-family:var(--font-disp); font-size:18px; font-weight:600}
+.sweep-head span{font-family:var(--font-mono); font-size:10.5px; color:var(--faint)}
+.sweep-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:10px}
+.kcell{padding:12px 12px 11px; border:1px solid var(--border); border-radius:10px; background:rgba(0,0,0,.12)}
+.kcell .k{font-family:var(--font-mono); font-size:10px; color:var(--faint)}
+.kcell b{display:block; margin:7px 0 6px; font-family:var(--font-disp); font-size:22px; line-height:1; font-variant-numeric:tabular-nums}
+.kcell .ktrack{height:4px; background:rgba(255,255,255,.07); border-radius:99px; overflow:hidden}
+.kcell .kfill{height:100%; background:var(--blue); border-radius:99px}
+.kcell.best{border-color:rgba(45,212,238,.45); background:rgba(45,212,238,.075)}
+.kcell.best b{color:var(--cyan)} .kcell.best .kfill{background:var(--cyan)}
+.sweep-cap{margin:14px 0 0; font-size:11px; color:var(--faintest); line-height:1.5}
+
+/* data */
+.dataset-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:40px}
+.dataset{border:1px solid var(--border); border-radius:var(--r-lg); background:linear-gradient(180deg,var(--surface-2),var(--surface)); padding:23px}
+.dataset .dtag{display:flex; justify-content:space-between; align-items:center; gap:10px; font-family:var(--font-mono); font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--faint)}
+.dataset .dtag b{color:var(--green); font-weight:500}
+.dataset h3{font-family:var(--font-disp); font-size:21px; font-weight:600; letter-spacing:-.015em; margin:11px 0 5px}
+.dataset .dsub{color:var(--faint); font-size:12.3px; margin:0 0 19px; line-height:1.6}
+.dcount{display:flex; align-items:flex-end; gap:9px; margin-bottom:6px}
+.dcount b{font-family:var(--font-disp); font-size:40px; line-height:1; letter-spacing:-.03em; font-variant-numeric:tabular-nums}
+.dcount span{font-size:11px; color:var(--faint); padding-bottom:4px}
+.stack{height:9px; border-radius:99px; overflow:hidden; display:flex; background:rgba(255,255,255,.06); margin:15px 0 8px}
+.stack .sn{background:linear-gradient(90deg,#2e6bff,#5b94ff)}
+.stack .sa{background:var(--red)}
+.stack-lab{display:flex; justify-content:space-between; gap:8px; font-family:var(--font-mono); font-size:10px; color:var(--faint)}
+.stack-lab .red{color:var(--red)}
+.dmeta{display:flex; gap:18px; margin-top:18px; padding-top:14px; border-top:1px solid var(--border); flex-wrap:wrap}
+.dmeta div b{display:block; font-family:var(--font-disp); font-size:17px; line-height:1.1}
+.dmeta div span{font-size:10.5px; color:var(--faint)}
+.repro-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:18px}
+.repro{border:1px solid var(--border); border-radius:var(--r-lg); background:var(--surface); padding:23px}
+.repro h3{font-family:var(--font-disp); font-size:17px; font-weight:600; margin:0 0 13px; letter-spacing:-.01em}
+.specs{display:grid; grid-template-columns:1fr 1fr; gap:10px 18px}
+.spec{border-top:1px solid var(--border); padding-top:9px}
+.spec span{display:block; font-family:var(--font-mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--faintest)}
+.spec b{display:block; font-size:12.4px; color:var(--muted); font-weight:500; line-height:1.5; margin-top:2px}
+.limits{margin:0; padding:0; list-style:none}
+.limits li{position:relative; padding:8px 0 8px 18px; border-top:1px solid var(--border); color:var(--muted); font-size:12.5px; line-height:1.6}
+.limits li:first-child{border-top:none; padding-top:0}
+.limits li::before{content:""; position:absolute; left:0; top:17px; width:5px;height:5px;border-radius:50%;background:var(--amber)}
+.limits li:first-child::before{top:9px}
+.limits b{color:var(--ink); font-weight:500}
+
+/* citation */
+#cite{padding-bottom:64px}
+.closing{position:relative; text-align:left; border-top:1px solid var(--border); padding-top:72px}
+.closing .ring{position:absolute; inset:-20% -10% auto; height:520px; z-index:-1; pointer-events:none;
+  background:radial-gradient(520px 300px at 24% 30%, rgba(45,212,238,.13), transparent 70%)}
+.cite-grid{display:grid; grid-template-columns:.82fr 1.18fr; gap:54px; align-items:center; margin-top:36px}
+.cite-copy h2{margin-top:0}
+.cite-copy p{color:var(--muted); font-size:15px; line-height:1.75; margin:0 0 22px; max-width:42ch}
+.cite-actions{display:flex; flex-wrap:wrap; gap:10px}
+.bib-card{border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; background:#0a0c16; box-shadow:var(--shadow)}
+.bib-bar{display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 15px; border-bottom:1px solid var(--border); background:#0d1020}
+.bib-bar span{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint)}
+.copybtn{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border-lit); background:var(--surface); color:var(--muted);
+  border-radius:7px; padding:5px 9px; font-family:var(--font-mono); font-size:10.5px; cursor:pointer; transition:.18s}
+.copybtn:hover{background:var(--surface-2); color:var(--ink); border-color:rgba(255,255,255,.3)}
+.copybtn svg{width:12px;height:12px}
+.bib-card pre{margin:0; padding:20px 20px 22px; overflow-x:auto; font-family:var(--font-mono); font-size:11.8px; line-height:1.85; color:#cdd6e8}
+.bib-card pre code{font-family:inherit}
+footer{border-top:1px solid var(--border); padding:34px 0; color:var(--faint); font-size:12.5px}
+.foot{display:flex; justify-content:space-between; align-items:center; gap:18px; flex-wrap:wrap}
+.foot .brand{font-size:15px; color:var(--muted); gap:9px}
+.foot .brand .mark{width:24px;height:24px;border-radius:6px}
+.foot .brand .mark svg{width:16px;height:16px}
+.foot a{color:var(--muted); border-bottom:1px solid var(--border-lit)}
+.foot a:hover{color:var(--ink)}
+
+/* figure zoom */
+.plate-bar .zoomhint{margin-left:auto; font-family:var(--font-mono); font-size:8.5px; letter-spacing:.08em; color:var(--faintest); display:inline-flex; align-items:center; gap:5px}
+.plate-bar .zoomhint::before{content:""; width:8px;height:8px; border:1px solid currentColor; border-radius:2px; box-shadow:3px 3px 0 -1px #0d1020,3px 3px 0 0 currentColor}
+.zoom{display:block; width:100%; margin:0; padding:0; border:0; background:none; color:inherit; font:inherit; cursor:zoom-in; text-align:left}
+.zoom:focus-visible{outline:2px solid var(--cyan); outline-offset:-4px}
+.zoom img{width:100%; height:auto; display:block; transition:filter .2s}
+.zoom:hover img{filter:brightness(1.04)}
+body.lb-open{overflow:hidden}
+.lightbox{position:fixed; inset:0; z-index:200; background:rgba(3,5,10,.97); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  display:grid; grid-template-rows:auto 1fr; gap:12px; padding:16px}
+.lightbox[hidden]{display:none}
+.lb-bar{display:flex; align-items:center; gap:14px; padding:3px 4px 0; color:var(--muted)}
+.lb-title{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--cyan)}
+.lb-hint{font-family:var(--font-mono); font-size:10px; color:var(--faintest); margin-left:auto}
+.lb-close{border:1px solid var(--border-lit); background:var(--surface); color:var(--ink); border-radius:8px; padding:7px 13px;
+  font-family:var(--font-mono); font-size:10.5px; letter-spacing:.04em; cursor:pointer; transition:.18s}
+.lb-close:hover{background:var(--surface-2); border-color:rgba(255,255,255,.34)}
+.lb-scroll{overflow:auto; border:1px solid var(--border-lit); border-radius:10px; background:#fff; overscroll-behavior:contain}
+.lb-scroll img{display:block; width:auto; height:auto; max-width:none; max-height:none; margin:auto}
+
+/* reveal */
+.js .reveal{opacity:0; transform:translateY(24px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1)}
+.js .reveal.in{opacity:1; transform:none}
+.reveal.d1{transition-delay:.07s}.reveal.d2{transition-delay:.14s}.reveal.d3{transition-delay:.21s}.reveal.d4{transition-delay:.28s}
+
+/* responsive */
+@media(max-width:1100px){
+  .bar-row{grid-template-columns:110px 1fr 48px}
+  .bar-axis{grid-template-columns:110px 1fr 48px}
+}
+@media(max-width:980px){
+  .heroin{grid-template-columns:1fr; gap:34px}
+  .herovis{max-width:620px; margin:0 auto; width:100%}
+  .herocopy .cta{justify-content:flex-start}
+  .abstract-grid,.problem-grid,.method-grid,.attention-grid,.cls-grid,.cite-grid{grid-template-columns:1fr; gap:34px}
+  .tall-stage{position:static}
+  .method-grid .tall-stage{max-width:620px; margin:10px auto 0; width:100%}
+  .attention-grid .plate{max-width:560px; margin:0 auto; width:100%}
+  .claim-grid{grid-template-columns:1fr 1fr}
+  .metric-grid{grid-template-columns:repeat(2,1fr)}
+  .results-split{grid-template-columns:1fr}
+  .exhibit{grid-template-columns:1fr; gap:28px}
+  .exhibit.flip .art{order:0}
+  .second-data{grid-template-columns:1fr; gap:18px}
+  .dataset-grid,.repro-grid{grid-template-columns:1fr}
+  .tradeoff{grid-template-columns:1fr; gap:18px}
+  .problem-grid .plate{max-width:640px; margin:0 auto; width:100%}
+  .cls-grid .plate{max-width:640px; margin:0 auto; width:100%}
+}
+@media(max-width:760px){
+  .navin{padding:13px 20px}
+  nav.scrolled .navin{padding:10px 20px}
+  .brand{font-size:16px}
+  .hero{padding:126px 0 60px}
+  .wrap{padding:0 20px}
+  section{padding:82px 0}
+  .statband{grid-template-columns:repeat(2,1fr); max-width:540px}
+  .stat:nth-child(2){border-right:none}
+  .stat{border-bottom:1px solid var(--border)}
+  .stat:nth-last-child(-n+2){border-bottom:none}
+  .claim-grid{grid-template-columns:1fr}
+  .claim-art{aspect-ratio:16/6.4}
+  .problem-row{grid-template-columns:1fr; gap:6px}
+  .loss-grid{grid-template-columns:1fr}
+  .metric-grid{grid-template-columns:1fr 1fr}
+  .metric b{font-size:32px}
+  .bar-row{grid-template-columns:104px 1fr 46px; gap:8px}
+  .bar-axis{grid-template-columns:104px 1fr 46px; gap:8px}
+  .sweep-grid{grid-template-columns:repeat(2,1fr)}
+  .kcell.best{grid-column:span 2}
+  .specs{grid-template-columns:1fr 1fr}
+  .hero h1{font-size:clamp(36px,10vw,54px)}
+  .herostats{grid-template-columns:1fr 1fr; gap:16px 18px}
+  .hstat b{font-size:24px}
+  .eyebrow .vol{display:none}
+  .table-head{display:block}
+  .table-tag{display:block;margin-top:6px}
+}
+@media(max-width:440px){
+  .metric-grid{grid-template-columns:1fr 1fr; gap:12px}
+  .metric{padding:16px 14px}
+  .metric b{font-size:30px}
+  .metric p{font-size:11.5px}
+  .deltas{grid-template-columns:1fr 1fr 1fr}
+  .delta{padding-left:9px}
+  .delta b{font-size:18px}
+  .bar-label{font-size:9.5px}
+  .bar-val{font-size:9.5px}
+}
+@media(prefers-reduced-motion:reduce){
+  .blob,.bar-fill{animation:none!important}
+  .js .reveal{opacity:1!important; transform:none!important}
+  html{scroll-behavior:auto}
+}
+
+
+/* Editorial research-site refinement · accessible, responsive, multilingual */
+nav.scrolled{background:rgba(6,10,20,.96);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+:root{--maxw:1232px;--r:18px;--r-lg:25px;--muted:#aebcd1;--faint:#899ab4;--border:rgba(185,210,255,.13);--border-lit:rgba(185,210,255,.28)}
+body{background:#070b13;background-image:radial-gradient(ellipse 75% 35% at 50% -4%,rgba(45,113,225,.1),transparent 78%);font-size:15.5px}
+.wrap{padding-inline:clamp(22px,3.8vw,56px)}
+section{padding-block:clamp(74px,9vw,114px)}
+section[id]{scroll-margin-top:100px}
+h1,h2,h3{overflow-wrap:break-word}
+h2{max-width:24ch;font-size:clamp(30px,3.5vw,46px);letter-spacing:-.035em}
+.lead{max-width:65ch;line-height:1.88}
+.abstract-body p,.lead,.sub,.claim-body p,.problem-row p,.step p,.cls-copy p,.cls-point,.math-note,.loss p,.metric p,.tradeoff p,.exhibit .copy p,.sd-copy p,.dataset .dsub,.limits li,.cite-copy p,.figcap{ text-align:justify;text-align-last:start;text-justify:inter-word;hyphens:auto;overflow-wrap:break-word}
+.abstract-body p{line-height:1.95}
+.claim p,.problem-row p,.step p,.exhibit .copy p,.dataset .dsub,.limits li{line-height:1.83}
+.hero{padding-top:clamp(125px,11vw,165px)}
+.hero h1{font-size:clamp(42px,5.4vw,73px);max-width:14ch}
+.hero h1 .hl{background:linear-gradient(115deg,#a3f5ff,#74b5ff 58%,#ba9afe);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{max-width:52ch;line-height:1.88}
+.paperline{color:#96bbdb}
+.heroin{gap:clamp(30px,4.7vw,68px);grid-template-columns:minmax(0,1.04fr) minmax(0,.96fr)}
+.latent-card{border:1px solid rgba(117,198,255,.35);box-shadow:0 44px 100px -65px rgba(53,154,235,.75),var(--shadow)}
+.claim,.panel,.dataset,.mathcard,.repro,.bib-card,.plate{box-shadow:0 12px 45px -36px rgba(0,0,0,.96)}
+.claim:hover,.dataset:hover{border-color:rgba(80,183,226,.28)}
+.claim-art{aspect-ratio:16/6.4}
+.plate{background:#101726}
+.plate-bar{background:#101827;min-height:42px}
+.plate-body{display:grid;place-items:center;background:#f8fafc;padding:clamp(10px,1.4vw,20px);overflow:hidden}
+.plate-body .zoom{display:flex;justify-content:center;align-items:center;width:100%;min-width:0;border-radius:8px;overflow:hidden}
+.plate-body img{display:block;width:auto;max-width:100%;height:auto;max-height:465px;object-fit:contain}
+#problem .plate-body img,#attention .plate-body img{max-height:510px}
+#method .tall-stage .plate-body img{max-height:650px}
+#method .cls-grid .plate-body img{max-height:465px}
+#evidence .plate-body img{max-height:485px}
+.plate .zoom:focus-visible,.btn:focus-visible,.copybtn:focus-visible,.ghbtn:focus-visible{outline:2px solid var(--cyan);outline-offset:4px}
+.figcap{padding-inline:4px;font-size:12px;line-height:1.78}
+#overview,#method,#results,#data{isolation:isolate}
+#overview::before,#method::before,#results::before,#data::before{content:"";position:absolute;top:0;left:50%;width:min(100% - 60px,1170px);height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,rgba(130,178,234,.15),transparent)}
+.kw,.chip,.pill{border-color:rgba(139,188,232,.2);background:rgba(77,128,202,.045)}
+.eyebrow{letter-spacing:.16em}
+.navin{max-width:1410px;gap:20px}
+.navlinks{gap:clamp(10px,1.4vw,22px);margin-left:auto}
+.navlinks a:not(.ghbtn){font-size:12.5px;font-weight:600;white-space:nowrap}
+.navlinks a:not(.ghbtn):hover{color:#a3efff}
+.nav-actions{display:flex;align-items:center;gap:8px;flex:none}
+.language-shell{border:1px solid rgba(176,211,242,.22);border-radius:11px;background:rgba(13,22,38,.9);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--cyan);transition:.2s}
+.language-shell:focus-within,.language-shell:hover{border-color:rgba(45,212,238,.65)}
+.language-shell svg{width:16px;height:16px;flex:none}
+.language-shell select{width:auto;min-width:93px;max-width:126px;border:0;outline:0;cursor:pointer;background:transparent;color:#e8effc;font-size:12.5px;padding:10px 17px 10px 0;font-family:var(--font-body)}
+.language-shell select option{background:#111827;color:#f5f8ff}
+.menu-toggle{display:none;width:41px;height:39px;border:1px solid var(--border-lit);border-radius:11px;background:rgba(18,27,42,.9);padding:11px;cursor:pointer;flex-direction:column;justify-content:space-between}
+.menu-toggle span{display:block;height:1.5px;width:100%;background:var(--ink);border-radius:3px;transition:.2s}
+.menu-toggle[aria-expanded=true] span:first-child{transform:translateY(7px) rotate(45deg)}
+.menu-toggle[aria-expanded=true] span:nth-child(2){opacity:0}
+.menu-toggle[aria-expanded=true] span:last-child{transform:translateY(-7px) rotate(-45deg)}
+.scroll-progress{position:fixed;top:0;inset-inline-start:0;height:3px;width:0;background:linear-gradient(90deg,var(--cyan),var(--blue),var(--violet));z-index:100;pointer-events:none;box-shadow:0 0 14px rgba(45,212,238,.6)}
+.skip-link{position:fixed;top:-80px;left:20px;z-index:200;background:#d6fbff;color:#061423;border-radius:8px;padding:10px 14px;font-weight:600}
+.skip-link:focus{top:12px}
+.bib-card pre{max-height:390px;overflow:auto;direction:ltr;text-align:left;unicode-bidi:isolate;font-size:11.4px;line-height:1.76;scrollbar-width:thin}
+.bib-card pre code{white-space:pre}
+.bib-card{min-width:0}
+.cite-copy p{max-width:48ch}
+.table-scroll{scrollbar-width:thin}
+.cls-copy p,.step p,.abstract-body p{max-width:66ch}
+/* Preserve the internal coordinates of vector scientific illustrations and numeric BiDi. */
+.latent-card svg,.claim-art svg{direction:ltr;unicode-bidi:isolate}
+html[dir=rtl] .hero .sub b:last-of-type,html[dir=rtl] .authorline b{unicode-bidi:isolate;direction:ltr}
+html[dir=rtl] .hero .sub b:last-of-type{display:inline-block}
+/* Native Arabic flow with protected scientific notation, figures, numbers and BibTeX. */
+html[lang^=zh] body{font-family:"Noto Sans SC","Microsoft YaHei",var(--font-body);letter-spacing:.008em}
+html[lang^=zh] .eyebrow,html[lang^=zh] .tag,html[lang^=zh] .metric span{letter-spacing:.045em}
+html[dir=rtl] body{font-family:"Noto Sans Arabic",Tahoma,Arial,sans-serif}
+html[dir=rtl] .navlinks{margin-left:0;margin-right:auto}
+html[dir=rtl] .hero h1{max-width:16ch}
+html[dir=rtl] .brand,html[dir=rtl] .nav-actions{direction:ltr}
+html[dir=rtl] .eyebrow::before{order:1}
+html[dir=rtl] .step:not(:last-child)::before{left:auto;right:18px}
+html[dir=rtl] .problem-row,html[dir=rtl] .step{direction:rtl}
+html[dir=rtl] .tradeoff{border-left:1px solid var(--border);border-right:2px solid var(--amber)}
+html[dir=rtl] .mini-table,html[dir=rtl] .table-scroll,html[dir=rtl] .bar-row,html[dir=rtl] .bar-axis,html[dir=rtl] .eqline,html[dir=rtl] .mathcard .eq,html[dir=rtl] .deltas,html[dir=rtl] .kcell,html[dir=rtl] .herostats,html[dir=rtl] .statband{direction:ltr}
+html[dir=rtl] .plate-bar .zoomhint{margin-left:0;margin-right:auto}
+html[dir=rtl] .limits li{padding-left:0;padding-right:18px}
+html[dir=rtl] .limits li::before{left:auto;right:0}
+html[dir=rtl] .claim-num,html[dir=rtl] .hstat b{direction:ltr}
+html[dir=rtl] .language-shell select{direction:ltr}
+@media(max-width:1120px){.navlinks{gap:12px}.navlinks a:not(.ghbtn){font-size:12px}}
+@media(max-width:960px){.heroin{grid-template-columns:1fr}.hero h1{max-width:22ch}.herovis{max-width:650px}}
+@media(max-width:860px){
+  .navin{padding:13px 23px}
+  .menu-toggle{display:flex}
+  .navlinks{display:none;position:absolute;top:calc(100% - 1px);left:16px;right:16px;margin:0!important;border:1px solid var(--border-lit);background:rgba(10,17,30,.98);box-shadow:0 24px 65px rgba(0,0,0,.6);border-radius:15px;padding:13px;flex-direction:column;align-items:stretch;gap:3px;backdrop-filter:blur(18px)}
+  .navlinks.open{display:flex}
+  .navlinks a,.navlinks a:not(.ghbtn){display:flex;padding:10px 13px;font-size:14px;min-height:40px;align-items:center;border-radius:8px}
+  .navlinks a:hover{background:rgba(255,255,255,.04)}
+  .navlinks .ghbtn{margin-top:6px}
+  .navin{justify-content:space-between}
+  .nav-actions{margin-left:auto}
+}
+@media(max-width:760px){
+  .wrap{padding-inline:20px}
+  .hero{padding:117px 0 65px}
+  .hero h1{font-size:clamp(36px,9.6vw,55px)}
+  .abstract-grid,.problem-grid,.method-grid,.attention-grid,.cls-grid,.cite-grid{gap:26px}
+  .metric-grid{gap:11px}
+  .claim-art{aspect-ratio:16/7.2}
+  .plate-body{padding:10px}
+  .plate-body img{max-height:360px!important}
+  #method .tall-stage .plate-body img{max-height:550px!important}
+  section{padding-block:76px}
+  .brand{font-size:16px}
+  .language-shell select{min-width:87px;font-size:12px}
+  .navin{padding:12px 18px}
+  .abstract-body p{text-align:justify}
+  .cite-copy p{max-width:100%}
+  .bib-card pre{font-size:10.6px;padding:15px}
+}
+@media(max-width:440px){.brand .mark{display:none}.navin{gap:10px}.language-shell{padding:0 8px}.language-shell svg{display:none}.language-shell select{min-width:80px}}
+@media(prefers-reduced-motion:reduce){.scroll-progress{transition:none!important}}
+
+</style>
+</head>
+<body>
+<a class="skip-link" href="#overview">Skip to content</a>
+<div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+<div class="bgfx" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+<div class="grid-overlay" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<nav id="nav" aria-label="Primary navigation">
+  <div class="navin">
+    <a class="brand" href="#top" aria-label="DA-SMOTE-ED, back to top">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="7" cy="15" r="2.5" fill="#5b94ff"/>
+          <circle cx="17.5" cy="7" r="2.5" fill="#ff486b"/>
+          <circle cx="17" cy="17" r="2.5" fill="#2dd4ee"/>
+          <path d="M9.2 13.8 15.4 8.4M9.5 16.1l5.2.7" stroke="#a8b0c4" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span>DA-SMOTE<b>-ED</b></span>
+    </a>
+    <div class="navlinks" id="primaryLinks">
+      <a href="#overview">Overview</a>
+      <a href="#problem">Problem</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#evidence">Evidence</a>
+      <a href="#cite">Cite</a>
+      <a class="ghbtn" href="https://doi.org/10.1016/j.compind.2023.103972" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9"/><path d="M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>
+        Paper
+      </a>
+    </div>
+    <div class="nav-actions">
+      <label class="sr-only" for="languageSelect">Interface language</label>
+      <div class="language-shell" title="Interface language">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18M12 3c-5 5-5 13 0 18"/></svg>
+        <select id="languageSelect" aria-label="Interface language">
+          <option value="en">English</option>
+          <option value="zh">中文</option>
+          <option value="ru">Русский</option>
+          <option value="fr">Français</option>
+          <option value="ar">العربية</option>
+        </select>
+      </div>
+      <button class="menu-toggle" id="menuToggle" type="button" aria-controls="primaryLinks" aria-expanded="false" aria-label="Open navigation menu"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+</nav>
+
+<span id="top"></span>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="heroin">
+      <div class="herocopy">
+        <span class="eyebrow"><span class="mono">COMPUTERS IN INDUSTRY</span><span class="vol"> · 151 (2023) 103972</span></span>
+        <p class="paperline" style="margin-top:16px">Deep Attention SMOTE <b>· DA-SMOTE-ED</b></p>
+        <h1>Teach SMOTE<br>where to <span class="hl">land.</span></h1>
+        <p class="sub">A learnable interpolation factor turns synthetic minority samples away from the <b>danger area</b> — and lifts balanced accuracy on imbalanced gas-turbine detection to <b>91.77%</b>.</p>
+        <p class="claimline"><b>Encoder–Decoder</b> + attention · 2 datasets · 12 re-samplers + baseline</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://doi.org/10.1016/j.compind.2023.103972" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
+            Read the paper
+          </a>
+          <a class="btn btn-ghost" href="#results">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            Jump to results
+          </a>
+        </div>
+        <div class="herostats">
+          <div class="hstat s1"><b>91.77%</b><span>Balanced accuracy</span></div>
+          <div class="hstat s2"><b>+3.67</b><span>over SMOTE-ENN</span></div>
+          <div class="hstat s3"><b>15.14 : 1</b><span>Imbalance ratio</span></div>
+          <div class="hstat s4"><b>+6.87</b><span>C-MAPPS gain</span></div>
+        </div>
+        <p class="authorline"><b>Dan Liu · Shisheng Zhong* · Lin Lin · Minghang Zhao* · Xuyun Fu · Xueyun Liu</b>
+          <span>Harbin Institute of Technology · * corresponding authors</span>
+        </p>
+      </div>
+
+      <div class="herovis">
+        <span class="pglow" aria-hidden="true"></span>
+        <div class="latent-card">
+          <svg viewBox="0 0 560 540" role="img" aria-labelledby="latentTitle latentDesc">
+            <title id="latentTitle">Conceptual sketch of the learned latent space</title>
+            <desc id="latentDesc">Normal samples cluster on the right inside a dashed danger area. Abnormal samples sit on the left. A synthetic sample is placed along the line from an abnormal sample z to its neighbor, far from the normal cluster.</desc>
+            <defs>
+              <pattern id="tinyGrid" width="32" height="32" patternUnits="userSpaceOnUse">
+                <path d="M32 0H0V32" fill="none" stroke="rgba(255,255,255,.055)" stroke-width="1"/>
+              </pattern>
+              <radialGradient id="normalGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#5b94ff" stop-opacity=".22"/>
+                <stop offset="100%" stop-color="#5b94ff" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="syntheticGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#2dd4ee" stop-opacity=".55"/>
+                <stop offset="100%" stop-color="#2dd4ee" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="interpLine" x1="208" y1="266" x2="122" y2="190" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#ff486b"/>
+                <stop offset="100%" stop-color="#2dd4ee"/>
+              </linearGradient>
+              <marker id="arrowHead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                <path d="M0 0 10 5 0 10z" fill="#2dd4ee"/>
+              </marker>
+              <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+                <feGaussianBlur stdDeviation="7"/>
+              </filter>
+            </defs>
+            <rect width="560" height="540" fill="#080b14"/>
+            <rect width="560" height="540" fill="url(#tinyGrid)"/>
+            <circle cx="389" cy="300" r="147" fill="url(#normalGlow)"/>
+
+            <text x="31" y="42" fill="#7c869c" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="1.7">LEARNED FEATURE SPACE</text>
+            <text x="529" y="42" text-anchor="end" fill="#2dd4ee" font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="1.1">DA-SMOTE-ED</text>
+            <line x1="31" y1="55" x2="529" y2="55" stroke="rgba(255,255,255,.08)"/>
+
+            <ellipse cx="389" cy="300" rx="126" ry="112" fill="rgba(91,148,255,.045)" stroke="rgba(91,148,255,.48)" stroke-width="1.2" stroke-dasharray="5 6"/>
+            <text x="454" y="404" text-anchor="middle" fill="#7c869c" font-family="JetBrains Mono, monospace" font-size="9.5" letter-spacing="1.1">DANGER AREA</text>
+
+            <g fill="#5b94ff" opacity=".86">
+              <circle cx="392" cy="228" r="3.1"/><circle cx="404" cy="343" r="3.1"/><circle cx="381" cy="308" r="3.1"/><circle cx="356" cy="271" r="3.1"/><circle cx="374" cy="398" r="3.1"/><circle cx="352" cy="339" r="3.1"/><circle cx="394" cy="244" r="3.1"/><circle cx="446" cy="306" r="3.1"/><circle cx="372" cy="330" r="3.1"/><circle cx="367" cy="293" r="3.1"/><circle cx="412" cy="335" r="3.1"/><circle cx="406" cy="299" r="3.1"/><circle cx="396" cy="334" r="3.1"/><circle cx="355" cy="371" r="3.1"/><circle cx="391" cy="270" r="3.1"/><circle cx="420" cy="312" r="3.1"/><circle cx="338" cy="280" r="3.1"/><circle cx="374" cy="308" r="3.1"/><circle cx="316" cy="245" r="3.1"/><circle cx="340" cy="274" r="3.1"/><circle cx="318" cy="293" r="3.1"/><circle cx="383" cy="345" r="3.1"/><circle cx="341" cy="357" r="3.1"/><circle cx="403" cy="238" r="3.1"/><circle cx="398" cy="264" r="3.1"/><circle cx="385" cy="333" r="3.1"/><circle cx="291" cy="206" r="3.1"/><circle cx="370" cy="280" r="3.1"/><circle cx="390" cy="297" r="3.1"/><circle cx="397" cy="362" r="3.1"/><circle cx="331" cy="335" r="3.1"/><circle cx="373" cy="286" r="3.1"/><circle cx="353" cy="284" r="3.1"/><circle cx="360" cy="290" r="3.1"/><circle cx="434" cy="375" r="3.1"/><circle cx="360" cy="281" r="3.1"/><circle cx="391" cy="287" r="3.1"/><circle cx="427" cy="319" r="3.1"/><circle cx="369" cy="296" r="3.1"/><circle cx="388" cy="293" r="3.1"/><circle cx="396" cy="249" r="3.1"/><circle cx="395" cy="301" r="3.1"/><circle cx="343" cy="281" r="3.1"/><circle cx="395" cy="358" r="3.1"/><circle cx="446" cy="333" r="3.1"/>
+            </g>
+
+            <g fill="#ff486b" opacity=".94">
+              <path d="M157 225 l4.6 8h-9.2z"/><path d="M175 234 l4.6 8h-9.2z"/><path d="M149 212 l4.6 8h-9.2z"/><path d="M185 211 l4.6 8h-9.2z"/><path d="M158 241 l4.6 8h-9.2z"/><path d="M173 235 l4.6 8h-9.2z"/><path d="M124 184 l4.6 8h-9.2z"/><path d="M167 215 l4.6 8h-9.2z"/><path d="M114 219 l4.6 8h-9.2z"/><path d="M105 183 l4.6 8h-9.2z"/><path d="M150 227 l4.6 8h-9.2z"/><path d="M135 190 l4.6 8h-9.2z"/><path d="M162 250 l4.6 8h-9.2z"/><path d="M216 224 l4.6 8h-9.2z"/><path d="M136 221 l4.6 8h-9.2z"/><path d="M142 198 l4.6 8h-9.2z"/>
+            </g>
+
+            <path d="M392 284 l5.3 10.7 11.8 1.7-8.5 8.3 2 11.8-10.6-5.6-10.6 5.6 2-11.8-8.5-8.3 11.8-1.7z" fill="#2dd4ee"/>
+            <path d="M158 204 l5.3 10.7 11.8 1.7-8.5 8.3 2 11.8-10.6-5.6-10.6 5.6 2-11.8-8.5-8.3 11.8-1.7z" fill="#ff486b"/>
+            <text x="413" y="291" fill="#2dd4ee" font-family="JetBrains Mono, monospace" font-size="10">c_n</text>
+            <text x="177" y="215" fill="#ff486b" font-family="JetBrains Mono, monospace" font-size="10">c_a</text>
+
+            <line x1="208" y1="266" x2="122" y2="190" stroke="url(#interpLine)" stroke-width="1.7" stroke-dasharray="4 5" marker-end="url(#arrowHead)"/>
+            <circle cx="182" cy="243" r="20" fill="url(#syntheticGlow)" filter="url(#softGlow)"/>
+            <circle cx="182" cy="243" r="7.4" fill="#2dd4ee" stroke="#061018" stroke-width="2"/>
+            <circle cx="182" cy="243" r="14" fill="none" stroke="rgba(45,212,238,.45)" stroke-width="1"/>
+            <text x="194" y="254" fill="#2dd4ee" font-family="JetBrains Mono, monospace" font-size="10.5">z_new</text>
+            <circle cx="208" cy="266" r="5" fill="#ff486b"/>
+            <circle cx="208" cy="266" r="10" fill="none" stroke="rgba(255,72,107,.65)" stroke-width="1"/>
+            <text x="218" y="279" fill="#ff8ba2" font-family="JetBrains Mono, monospace" font-size="10.5">z</text>
+            <circle cx="122" cy="190" r="4.2" fill="none" stroke="#d7e7ff" stroke-width="1.4"/>
+            <text x="101" y="178" fill="#b9c5da" font-family="JetBrains Mono, monospace" font-size="10.5">z̃</text>
+
+            <rect x="290" y="93" width="117" height="30" rx="8" fill="rgba(45,212,238,.08)" stroke="rgba(45,212,238,.35)"/>
+            <text x="303" y="112" fill="#2dd4ee" font-family="JetBrains Mono, monospace" font-size="10.5">α̂ = f(z, z̃)</text>
+            <path d="M337 123c-4 10-12 15-28 20" fill="none" stroke="rgba(45,212,238,.4)" stroke-width="1" stroke-dasharray="3 4"/>
+
+            <text x="31" y="499" fill="#5e687e" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1">SCHEMATIC · NOT EXPERIMENTAL DATA</text>
+            <g font-family="JetBrains Mono, monospace" font-size="9.5" fill="#8d97ab">
+              <circle cx="336" cy="495" r="3" fill="#5b94ff"/><text x="344" y="499">normal</text>
+              <path d="M406 498 l4.6 8h-9.2z" fill="#ff486b"/><text x="417" y="499">abnormal</text>
+              <circle cx="493" cy="495" r="3" fill="#2dd4ee"/><text x="501" y="499">synthetic</text>
+            </g>
+          </svg>
+        </div>
+        <p class="fig-note">Conceptual schematic of the learned latent space</p>
+      </div>
+    </div>
+
+    <div class="statband" aria-label="Study at a glance">
+      <div class="stat s1"><b>13</b><span>methods in the comparison</span></div>
+      <div class="stat s2"><b>5-fold</b><span>cross-validation</span></div>
+      <div class="stat s3"><b>7,019</b><span>samples across two datasets</span></div>
+      <div class="stat s4"><b>1.473 ms</b><span>to infer 204 test samples</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="overview">
+  <div class="wrap">
+    <div class="abstract-grid">
+      <div class="reveal">
+        <span class="eyebrow" style="--ac:var(--cyan)">Abstract</span>
+        <h2>A better place to <span class="uline" style="--ac:var(--cyan)">synthesize.</span></h2>
+        <p class="lead">The paper couples a hybrid re-sampling pipeline with a learned interpolation factor. The goal is not more synthetic data; it is synthetic data that lands on the right side of the boundary.</p>
+      </div>
+      <div class="abstract-body reveal d1">
+        <p>Anomaly detection of gas turbines faces the significant challenges of data imbalance and inter-class overlap. In this paper, we develop a novel data augmentation method, namely deep attention synthetic minority over-sampling technique with the Encoder-Decoder (DA-SMOTE-ED), which serves as a key step in our hybrid re-sampling scheme.</p>
+        <p>To reduce the risk of generating noise data, on one hand, the DA-SMOTE-ED leverages an Encoder-Decoder to learn a class-separable feature space to weaken the effect of inter-class overlap. On the other hand, an attention module is applied to assign proper interpolation factors to generate synthetic samples that stay off the aggregation area of normal samples. Synthetic samples are generated in the learnable feature space, mapped back to the original space, and merged with under-sampled samples to form the balanced dataset.</p>
+        <p>The method is validated on real gas-turbine monitoring data and the modified C-MAPPS dataset. Its average balanced accuracy is <b>91.77%</b> on the gas turbine dataset, yielding <b>3.67%</b>, <b>6.4%</b>, and <b>5.56%</b> improvements compared to SMOTE-ENN, TimeGAN, and AugmentTS, respectively.</p>
+        <div class="keywords" aria-label="Keywords">
+          <span class="kw">gas turbine</span><span class="kw">imbalanced data</span><span class="kw">inter-class overlap</span><span class="kw">data augmentation</span><span class="kw">anomaly detection</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="claim-grid">
+      <article class="claim claim-cc1 reveal">
+        <div class="claim-art" aria-hidden="true">
+          <svg viewBox="0 0 520 228" fill="none">
+            <g fill="#5b94ff" opacity=".8"><circle cx="118" cy="74" r="4"/><circle cx="146" cy="96" r="4"/><circle cx="92" cy="112" r="4"/><circle cx="132" cy="138" r="4"/><circle cx="168" cy="66" r="4"/><circle cx="104" cy="152" r="4"/><circle cx="158" cy="124" r="4"/><circle cx="82" cy="86" r="4"/><circle cx="180" cy="101" r="4"/><circle cx="122" cy="164" r="4"/></g>
+            <g stroke="#2dd4ee" stroke-width="1.3"><circle cx="118" cy="74" r="8"/><circle cx="146" cy="96" r="8"/><circle cx="92" cy="112" r="8"/><circle cx="132" cy="138" r="8"/></g>
+            <g fill="#ff486b" opacity=".9"><path d="M369 64l4.6 8h-9.2z"/><path d="M391 88l4.6 8h-9.2z"/><path d="M351 112l4.6 8h-9.2z"/><path d="M381 126l4.6 8h-9.2z"/><path d="M412 92l4.6 8h-9.2z"/></g>
+            <g stroke="#2dd4ee" stroke-width="1.3"><circle cx="369" cy="68" r="8"/><circle cx="391" cy="92" r="8"/><circle cx="351" cy="116" r="8"/><circle cx="381" cy="130" r="8"/><circle cx="412" cy="96" r="8"/></g>
+            <path d="M203 111h129" stroke="rgba(255,255,255,.28)" stroke-width="1.2" stroke-dasharray="4 5"/>
+            <path d="M332 111l-8-4v8z" fill="rgba(255,255,255,.4)"/>
+            <path d="M221 29h76" stroke="#1ed16f" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <text x="223" y="22" fill="#1ed16f" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1">K-MEANS</text>
+            <text x="264" y="130" fill="#7c869c" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1">COMPRESS</text>
+          </svg>
+        </div>
+        <div class="claim-body">
+          <div class="claim-top"><span class="claim-num">01</span><h3>Compress, don't discard</h3></div>
+          <p>K-Means keeps K normal cluster centers instead of throwing the majority class away. The under-sampled set is K centers plus every abnormal sample.</p>
+        </div>
+      </article>
+
+      <article class="claim claim-cc2 reveal d1">
+        <div class="claim-art" aria-hidden="true">
+          <svg viewBox="0 0 520 228" fill="none">
+            <circle cx="144" cy="114" r="63" fill="rgba(91,148,255,.055)" stroke="rgba(91,148,255,.45)"/>
+            <circle cx="379" cy="114" r="63" fill="rgba(255,72,107,.055)" stroke="rgba(255,72,107,.5)"/>
+            <g fill="#5b94ff" opacity=".85"><circle cx="125" cy="91" r="3.4"/><circle cx="148" cy="84" r="3.4"/><circle cx="161" cy="112" r="3.4"/><circle cx="137" cy="129" r="3.4"/><circle cx="116" cy="119" r="3.4"/><circle cx="151" cy="137" r="3.4"/><circle cx="129" cy="145" r="3.4"/><circle cx="168" cy="95" r="3.4"/></g>
+            <g fill="#ff486b" opacity=".9"><path d="M366 82l4.6 8h-9.2z"/><path d="M392 93l4.6 8h-9.2z"/><path d="M355 112l4.6 8h-9.2z"/><path d="M381 125l4.6 8h-9.2z"/><path d="M402 142l4.6 8h-9.2z"/><path d="M365 142l4.6 8h-9.2z"/><path d="M398 110l4.6 8h-9.2z"/></g>
+            <path d="M259 37v154" stroke="rgba(45,212,238,.6)" stroke-width="1.2" stroke-dasharray="5 6"/>
+            <text x="270" y="52" fill="#2dd4ee" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1">LEARNED SPACE</text>
+            <text x="96" y="203" fill="#5b94ff" font-family="JetBrains Mono, monospace" font-size="9">normal</text>
+            <text x="374" y="203" fill="#ff486b" font-family="JetBrains Mono, monospace" font-size="9">abnormal</text>
+          </svg>
+        </div>
+        <div class="claim-body">
+          <div class="claim-top"><span class="claim-num">02</span><h3>Separate before synthesizing</h3></div>
+          <p>Two Transformer encoder layers map the data to a latent space. A triplet-center objective pulls each class inward and pushes the other class away.</p>
+        </div>
+      </article>
+
+      <article class="claim claim-cc3 reveal d2">
+        <div class="claim-art" aria-hidden="true">
+          <svg viewBox="0 0 520 228" fill="none">
+            <path d="M97 68h326" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="3 6"/>
+            <path d="M97 115h326" stroke="rgba(255,255,255,.1)" stroke-width="1" stroke-dasharray="3 6"/>
+            <circle cx="145" cy="149" r="6" fill="#ff486b"/><text x="128" y="175" fill="#ff8ba2" font-family="JetBrains Mono, monospace" font-size="10">z</text>
+            <circle cx="377" cy="79" r="4.6" fill="none" stroke="#d7e7ff" stroke-width="1.4"/><text x="387" y="73" fill="#b9c5da" font-family="JetBrains Mono, monospace" font-size="10">z̃</text>
+            <path d="M150 144 372 84" stroke="#ffb13d" stroke-width="1.4" stroke-dasharray="4 5"/>
+            <circle cx="258" cy="115" r="8" fill="#2dd4ee" stroke="#061018" stroke-width="2"/>
+            <circle cx="258" cy="115" r="17" fill="none" stroke="rgba(45,212,238,.4)"/>
+            <text x="278" y="137" fill="#2dd4ee" font-family="JetBrains Mono, monospace" font-size="10">z_new</text>
+            <rect x="166" y="40" width="116" height="27" rx="7" fill="rgba(255,72,107,.08)" stroke="rgba(255,72,107,.4)"/>
+            <text x="177" y="58" fill="#ff8ba2" font-family="JetBrains Mono, monospace" font-size="9.5">α ~ U(0, 1)</text>
+            <rect x="294" y="152" width="142" height="27" rx="7" fill="rgba(45,212,238,.08)" stroke="rgba(45,212,238,.4)"/>
+            <text x="305" y="170" fill="#2dd4ee" font-family="JetBrains Mono, monospace" font-size="9.5">α̂ = f(z, z̃)</text>
+          </svg>
+        </div>
+        <div class="claim-body">
+          <div class="claim-top"><span class="claim-num">03</span><h3>Learn one α per pair</h3></div>
+          <p>SMOTE samples α from U(0, 1). DA-SMOTE runs a small attention block over each sample pair and predicts the factor from the data distribution.</p>
+        </div>
+      </article>
+
+      <article class="claim claim-cc4 reveal d3">
+        <div class="claim-art" aria-hidden="true">
+          <svg viewBox="0 0 520 228" fill="none">
+            <text x="54" y="65" fill="#7c869c" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1.3">REAL TURBINE</text>
+            <text x="54" y="96" fill="#5b94ff" font-family="Space Grotesk, sans-serif" font-size="27" font-weight="700">15.14 : 1</text>
+            <rect x="54" y="112" width="172" height="7" rx="4" fill="rgba(255,255,255,.07)"/>
+            <rect x="54" y="112" width="161" height="7" rx="4" fill="#5b94ff"/>
+            <rect x="220" y="112" width="6" height="7" rx="3" fill="#ff486b"/>
+            <text x="54" y="145" fill="#7c869c" font-family="JetBrains Mono, monospace" font-size="9">954 normal · 63 abnormal</text>
+            <text x="308" y="65" fill="#7c869c" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1.3">C-MAPPS</text>
+            <text x="308" y="96" fill="#1ed16f" font-family="Space Grotesk, sans-serif" font-size="27" font-weight="700">65.69 : 1</text>
+            <rect x="308" y="112" width="158" height="7" rx="4" fill="rgba(255,255,255,.07)"/>
+            <rect x="308" y="112" width="155" height="7" rx="4" fill="#1ed16f"/>
+            <rect x="463" y="112" width="3.6" height="7" rx="2" fill="#ff486b"/>
+            <text x="308" y="145" fill="#7c869c" font-family="JetBrains Mono, monospace" font-size="9">5,912 normal · 90 abnormal</text>
+            <path d="M54 174h418" stroke="rgba(255,255,255,.08)"/>
+            <text x="54" y="197" fill="#5e687e" font-family="JetBrains Mono, monospace" font-size="9">TWO VERY DIFFERENT IMBALANCE REGIMES</text>
+          </svg>
+        </div>
+        <div class="claim-body">
+          <div class="claim-top"><span class="claim-num">04</span><h3>Test both regimes</h3></div>
+          <p>The same recipe is checked on a real fleet with a 15:1 imbalance and on a public turbofan benchmark with a 66:1 imbalance.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="problem">
+  <div class="wrap">
+    <span class="eyebrow reveal" style="--ac:var(--red)">The failure mode</span>
+    <h2 class="reveal d1">A random step can land in the <span class="uline" style="--ac:var(--red)">wrong neighbourhood.</span></h2>
+    <p class="lead reveal d2">Standard SMOTE interpolates toward a minority neighbour with no look at the majority distribution. When the two classes overlap, a synthetic fault can fall inside normal operation and teach the classifier the wrong boundary.</p>
+
+    <div class="problem-grid">
+      <div class="reveal">
+        <div class="problem-list">
+          <div class="problem-row pc1">
+            <div class="problem-num">15.14 : 1</div>
+            <div><h3>One class owns the loss</h3><p>954 normal windows against 63 abnormal windows. A classifier can look accurate by predicting normal almost everywhere.</p></div>
+          </div>
+          <div class="problem-row pc2">
+            <div class="problem-num">overlap</div>
+            <div><h3>Faults start close to normal</h3><p>Incipient abnormalities resemble healthy operation. The minority region is not a clean, well-separated island.</p></div>
+          </div>
+          <div class="problem-row pc3">
+            <div class="problem-num">α ~ U(0,1)</div>
+            <div><h3>Randomness ignores geometry</h3><p>SMOTE's interpolation factor is drawn uniformly. The synthetic sample can cross into the danger area and become a noisy label.</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal d1">
+        <div class="plate">
+          <div class="plate-bar"><span class="dotrow" aria-hidden="true"><i></i><i></i><i></i></span><span>FIG. 01 / RESAMPLING GEOMETRY</span><span class="zoomhint">ENLARGE</span></div>
+          <div class="plate-body">
+            <button class="zoom" type="button" data-zoom="images/fig1-sampling-strategies.jpg" aria-label="Open full-size figure" title="Open full-size figure">
+              <img src="images/fig1-sampling-strategies.jpg" alt="Eight-panel figure comparing traditional under-sampling, data augmentation and hybrid sampling, with zoomed diagrams of SMOTE and DA-SMOTE interpolation." loading="eager">
+            </button>
+          </div>
+        </div>
+        <p class="figcap"><b>Fig. 1.</b> Traditional under-sampling loses normal information; traditional augmentation can place synthetic faults in the danger area. The hybrid route combines (d) under-sampling, (e) feature projection, and (f) DA-SMOTE. Panels (g) and (h) contrast random and learned interpolation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="method">
+  <div class="wrap">
+    <span class="eyebrow reveal" style="--ac:var(--cyan)">Method</span>
+    <h2 class="reveal d1">One pipeline. <span class="uline" style="--ac:var(--cyan)">Four moves.</span></h2>
+    <p class="lead reveal d2">From raw flight-cycle windows to a balanced training set and a binary decision. The encoder is not an add-on: it is what makes the interpolation factor worth learning.</p>
+
+    <div class="method-grid">
+      <div class="steps reveal d1">
+        <div class="step">
+          <div class="step-n">01</div>
+          <div>
+            <h3>Compress the majority</h3>
+            <p>K-Means partitions normal windows into K clusters. The K centers replace the full normal set, then join every abnormal window to form the under-sampled set X.</p>
+            <div class="chips"><span class="chip">K = 90</span><span class="chip">K centers + M minorities</span></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">02</div>
+          <div>
+            <h3>Learn a separable space</h3>
+            <p>A two-layer Transformer encoder maps X to Z. The reconstruction loss keeps the input information; the triplet-center loss pulls each class toward its center and pushes the other class away.</p>
+            <div class="chips"><span class="chip">2 encoder layers</span><span class="chip">h = 4</span><span class="chip">d_i = 32</span></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">03</div>
+          <div>
+            <h3>Predict alpha per pair</h3>
+            <p>For each abnormal sample z and one of its 5 nearest abnormal neighbours z̃, the attention block predicts an interpolation factor in (0, 1). The synthetic point is z + α̂(z̃ − z).</p>
+            <div class="chips"><span class="chip">k = 5</span><span class="chip">reduction r = 16</span><span class="chip">sigmoid output</span></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-n">04</div>
+          <div>
+            <h3>Decode and classify</h3>
+            <p>The decoder maps synthetic latent samples back to the original space. Under-sampled and synthetic samples train the SANet classifier, which returns a normal or abnormal decision.</p>
+            <div class="chips"><span class="chip">2 decoder layers</span><span class="chip">SANet + Softmax</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tall-stage reveal d2">
+        <div class="plate">
+          <div class="plate-bar"><span class="dotrow" aria-hidden="true"><i></i><i></i><i></i></span><span>FIG. 02 / FRAMEWORK OVERVIEW</span><span class="zoomhint">ENLARGE</span></div>
+          <div class="plate-body">
+            <button class="zoom" type="button" data-zoom="images/fig2-framework.jpg" aria-label="Open full-size figure" title="Open full-size figure">
+              <img src="images/fig2-framework.jpg" alt="Vertical framework diagram: data preprocessing, clustering-based under-sampling, DA-SMOTE-ED data augmentation in the learned feature space, and SANet classification." loading="eager">
+            </button>
+          </div>
+        </div>
+        <p class="figcap"><b>Fig. 2.</b> Data preprocessing → clustering-based under-sampling → DA-SMOTE-ED augmentation in the learned feature space → balanced training and SANet classification.</p>
+      </div>
+    </div>
+
+    <div class="cls-grid">
+      <div class="reveal">
+        <div class="plate">
+          <div class="plate-bar"><span class="dotrow" aria-hidden="true"><i></i><i></i><i></i></span><span>FIG. 03 / SANET CLASSIFIER</span><span class="zoomhint">ENLARGE</span></div>
+          <div class="plate-body">
+            <button class="zoom" type="button" data-zoom="images/fig3-sanet.jpg" aria-label="Open full-size figure" title="Open full-size figure">
+              <img src="images/fig3-sanet.jpg" alt="Three panels showing the SANet Transformer encoder stack, the multi-head self-attention block, and the scaled dot-product attention computation." loading="eager">
+            </button>
+          </div>
+        </div>
+        <p class="figcap"><b>Fig. 3.</b> The SANet and its multi-head self-attention unit. In the paper, the classifier uses two Transformer encoder layers and a Softmax head.</p>
+      </div>
+      <div class="cls-copy reveal d1">
+        <span class="eyebrow" style="--ac:var(--blue)">Held constant</span>
+        <h3>The classifier is the same for every method.</h3>
+        <p>All 14 methods are evaluated with the same SANet architecture and hyper-parameters. That isolates the effect of re-sampling: changes in TPR, TNR, and balanced accuracy are not coming from a larger or differently tuned classifier.</p>
+        <div class="cls-points">
+          <div class="cls-point"><span><b>14 methods, one test protocol.</b> Baseline, 2 under-samplers, 4 over-samplers, 2 hybrid methods, and 4 deep generative methods.</span></div>
+          <div class="cls-point"><span><b>5-fold cross-validation</b> on both datasets, reporting TPR, TNR, and balanced accuracy.</span></div>
+          <div class="cls-point"><span><b>Inference cost is essentially flat</b> across methods because every experiment uses the trained SANet at test time.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="attention">
+  <div class="wrap">
+    <span class="eyebrow reveal" style="--ac:var(--red)">Inside DA-SMOTE</span>
+    <h2 class="reveal d1">The factor is not sampled. <span class="uline" style="--ac:var(--red)">It is predicted.</span></h2>
+    <p class="lead reveal d2">A small attention block reads the pair [z, z̃] and returns a scalar. The rest is still interpolation — but the step size now depends on where the pair sits in the learned space.</p>
+
+    <div class="attention-grid">
+      <div class="reveal">
+        <div class="plate">
+          <div class="plate-bar"><span class="dotrow" aria-hidden="true"><i></i><i></i><i></i></span><span>FIG. 04 / DA-SMOTE-ED</span><span class="zoomhint">ENLARGE</span></div>
+          <div class="plate-body">
+            <button class="zoom" type="button" data-zoom="images/fig4-da-smote-ed.jpg" aria-label="Open full-size figure" title="Open full-size figure">
+              <img src="images/fig4-da-smote-ed.jpg" alt="Two panels: the encoder, DA-SMOTE attention block and decoder, plus a detail of the attention module mapping a pair z and z-tilde to alpha-hat and a synthetic sample." loading="eager">
+            </button>
+          </div>
+        </div>
+        <p class="figcap"><b>Fig. 4.</b> (a) Encoder → DA-SMOTE → decoder. (b) The attention block: linear → ReLU → linear → ReLU → linear → sigmoid, producing α̂.</p>
+      </div>
+
+      <div class="reveal d1">
+        <div class="mathcard">
+          <div class="math-head"><span>Attention factor</span><b>Equations 5–8</b></div>
+          <div class="eq">
+            <div class="eqline">h<sub>1</sub> = ReLU(W<sub>1</sub>[z, z̃])</div>
+            <div class="eqline">h<sub>2</sub> = ReLU(W<sub>2</sub>h<sub>1</sub>)</div>
+            <div class="eqline">α̂ = σ(W<sub>3</sub>h<sub>2</sub>) <span class="op">∈ (0, 1)</span></div>
+            <div class="eqline">z<sub>new</sub> = z + <span class="hi">α̂</span>(z̃ − z)</div>
+          </div>
+          <p class="math-note">The first linear layer reduces dimensionality with ratio r = 16; the second restores it. The sigmoid keeps the interpolation factor inside the segment between the two abnormal samples.</p>
+        </div>
+        <div class="loss-grid">
+          <div class="loss">
+            <div class="lk">Reconstruction</div>
+            <div class="lv">L<sub>R</sub> — keep the input</div>
+            <p>Class-balanced l2 reconstruction, with β = 0.999. Prevents the latent space from throwing away the signal.</p>
+          </div>
+          <div class="loss">
+            <div class="lk">Triplet-center</div>
+            <div class="lv">L<sub>TC</sub> — separate the classes</div>
+            <p>Margin d = 5. Pulls each sample toward its class center and pushes it away from the other center.</p>
+          </div>
+        </div>
+        <div class="loss" style="margin-top:14px">
+          <div class="lk">End-to-end objective</div>
+          <div class="lv">L<sub>Total</sub> = L<sub>R</sub> + L<sub>TC</sub></div>
+          <p>The encoder, attention block and decoder are trained together, so the interpolation factor is shaped by both reconstruction fidelity and class separation.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wrap">
+    <span class="eyebrow reveal" style="--ac:var(--cyan)">Results</span>
+    <h2 class="reveal d1">Better balance, <span class="uline" style="--ac:var(--cyan)">not just better recall.</span></h2>
+    <p class="lead reveal d2">Five-fold cross-validation on the real turbine data. The gain concentrates where the imbalance hurts: the minority class. The normal-class rate is lower than the baselines — and the paper is explicit about that trade-off.</p>
+
+    <div class="metric-grid">
+      <div class="metric m1 reveal"><span>Balanced accuracy</span><b>91.77<small>%</small></b><p>Best of 14 methods on the gas turbine dataset.</p></div>
+      <div class="metric m2 reveal d1"><span>TPR</span><b>89.59<small>%</small></b><p>+11.78 pts over SMOTE-ENN (77.81%).</p></div>
+      <div class="metric m3 reveal d2"><span>TNR</span><b>93.95<small>%</small></b><p>4.44 pts below SMOTE-ENN; see the trade-off note.</p></div>
+      <div class="metric m4 reveal d3"><span>Inference</span><b>1.473<small>ms</small></b><p>For 204 test samples with the trained SANet.</p></div>
+    </div>
+
+    <div class="results-split">
+      <div class="panel reveal">
+        <div class="panel-head"><b>Balanced accuracy</b><span>GAS TURBINE · 5-FOLD MEAN</span></div>
+        <div class="chart" role="img" aria-label="Horizontal bar chart of balanced accuracy on the gas turbine dataset. DA-SMOTE-ED is highest at 91.77 percent, followed by SMOTE-ENN at 88.10, AugmentTS at 86.21, SMOTE-Tomek at 86.14, ENN at 85.59, SMOTE at 85.37, GAN at 84.92, and baseline at 84.39.">
+          <div class="bar-row ours" style="--w:84%;--bc:var(--cyan)"><span class="bar-label">DA-SMOTE-ED</span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-val">91.77</span></div>
+          <div class="bar-row" style="--w:58%;--bc:var(--green)"><span class="bar-label">SMOTE-ENN</span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-val">88.10</span></div>
+          <div class="bar-row" style="--w:44%;--bc:var(--blue)"><span class="bar-label">AugmentTS</span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-val">86.21</span></div>
+          <div class="bar-row" style="--w:44%;--bc:var(--blue)"><span class="bar-label">SMOTE-Tomek</span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-val">86.14</span></div>
+          <div class="bar-row" style="--w:40%;--bc:var(--violet)"><span class="bar-label">ENN</span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-val">85.59</span></div>
+          <div class="bar-row" style="--w:38%;--bc:var(--violet)"><span class="bar-label">SMOTE</span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-val">85.37</span></div>
+          <div class="bar-row" style="--w:35%;--bc:var(--amber)"><span class="bar-label">GAN</span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-val">84.92</span></div>
+          <div class="bar-row" style="--w:31%;--bc:var(--faint)"><span class="bar-label">Baseline</span><div class="bar-track"><div class="bar-fill"></div></div><span class="bar-val">84.39</span></div>
+          <div class="bar-axis" aria-hidden="true"><span></span><div class="ticks"><span>80</span><span>85</span><span>90</span><span>94</span></div><span></span></div>
+        </div>
+        <p class="chart-note">Axis starts at 80% to make differences visible. Values from Table VII; selected methods shown, full comparison below.</p>
+      </div>
+
+      <div class="panel tradeoff reveal d1">
+        <div>
+          <h3>Read TPR and TNR together.</h3>
+          <p>The reported TNR is lower than the baselines because the classifier is not dominated by the majority class. The authors argue this is the appropriate operating point for safety-critical gas turbines, where missing a fault is more costly than a false alarm. Balanced accuracy rises because the TPR gain is larger than the TNR loss.</p>
+        </div>
+        <div class="deltas" aria-label="DA-SMOTE-ED versus SMOTE-ENN">
+          <div class="delta up"><b>+11.78</b><span>TPR pts</span></div>
+          <div class="delta down"><b>−4.44</b><span>TNR pts</span></div>
+          <div class="delta acc"><b>+3.67</b><span>BA pts</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-card reveal">
+      <div class="panel-head"><b>Full comparison</b><span>14 METHODS · 5-FOLD MEAN</span></div>
+      <div class="table-head">
+        <p class="table-cap">Table VII. Average TPR, TNR, balanced accuracy, and inference time of different anomaly detection methods on the gas turbine dataset</p>
+        <span class="table-tag">GAS TURBINE</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Method</th><th>TPR (%)</th><th>TNR (%)</th><th>BA (%)</th><th>Time (ms)</th></tr></thead>
+          <tbody>
+            <tr><td>Baseline</td><td>69.79</td><td>98.98</td><td>84.39</td><td>1.399</td></tr>
+            <tr><td>Tomek</td><td>70.81</td><td>98.90</td><td>84.85</td><td>1.384</td></tr>
+            <tr><td>ENN</td><td>72.32</td><td>98.86</td><td>85.59</td><td>1.345</td></tr>
+            <tr><td>ADASYN</td><td>69.73</td><td>98.82</td><td>84.27</td><td>1.505</td></tr>
+            <tr><td>SMOTE</td><td>71.88</td><td>98.85</td><td>85.37</td><td>1.423</td></tr>
+            <tr><td>BSMOTE</td><td>71.72</td><td>98.85</td><td>85.28</td><td>1.515</td></tr>
+            <tr><td>KSMOTE</td><td>72.10</td><td>98.71</td><td>85.41</td><td>1.422</td></tr>
+            <tr><td>SMOTE-Tomek</td><td>73.38</td><td>98.90</td><td>86.14</td><td>1.419</td></tr>
+            <tr><td>SMOTE-ENN</td><td>77.81</td><td>98.39</td><td>88.10</td><td>1.432</td></tr>
+            <tr><td>VAE</td><td>62.59</td><td>98.11</td><td>80.35</td><td>1.408</td></tr>
+            <tr><td>GAN</td><td>70.82</td><td>99.02</td><td>84.92</td><td>1.536</td></tr>
+            <tr><td>TimeGAN</td><td>72.06</td><td>98.67</td><td>85.37</td><td>1.402</td></tr>
+            <tr><td>AugmentTS</td><td>73.45</td><td>98.96</td><td>86.21</td><td>1.411</td></tr>
+            <tr class="ours"><td>DA-SMOTE-ED</td><td>89.59</td><td>93.95</td><td>91.77</td><td>1.473</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="table-note">Reproduced from Table VII of the paper. Inference time is measured for 204 test samples.</p>
+    </div>
+  </div>
+</section>
+
+<section id="evidence">
+  <div class="wrap">
+    <span class="eyebrow reveal" style="--ac:var(--green)">Evidence</span>
+    <h2 class="reveal d1">The geometry <span class="uline" style="--ac:var(--green)">moves.</span></h2>
+    <p class="lead reveal d2">The method is not only a table result. The paper shows the learned distribution shifting during training, and the t-SNE geometry before and after re-sampling.</p>
+
+    <div class="exhibit reveal" style="--ec:var(--red)">
+      <div class="art">
+        <div class="plate">
+          <div class="plate-bar"><span class="dotrow" aria-hidden="true"><i></i><i></i><i></i></span><span>FIG. 05 / TRAINING DYNAMICS</span><span class="zoomhint">ENLARGE</span></div>
+          <div class="plate-body">
+            <button class="zoom" type="button" data-zoom="images/fig5-latent-dynamics.jpg" aria-label="Open full-size figure" title="Open full-size figure">
+              <img src="images/fig5-latent-dynamics.jpg" alt="Panels showing the sample distribution before, during and after training, plus pull and push force diagrams for normal, abnormal and synthetic samples." loading="lazy">
+            </button>
+          </div>
+        </div>
+        <p class="figcap"><b>Fig. 5.</b> Normal samples move toward the normal center; abnormal and synthetic samples move toward the abnormal center, away from the normal class.</p>
+      </div>
+      <div class="copy">
+        <span class="tag">training · pull &amp; push</span>
+        <h3>A synthetic point is trained, not painted.</h3>
+        <p>The triplet-center objective gives the synthetic sample its own loss term. As training proceeds, it is pulled toward the abnormal center and pushed away from the normal center — the geometric argument behind “stay off the danger area.”</p>
+        <div class="pills"><span class="pill">reconstruction loss</span><span class="pill">triplet-center loss</span><span class="pill">end-to-end training</span></div>
+      </div>
+    </div>
+
+    <div class="exhibit flip reveal" style="--ec:var(--cyan)">
+      <div class="art">
+        <div class="plate">
+          <div class="plate-bar"><span class="dotrow" aria-hidden="true"><i></i><i></i><i></i></span><span>FIG. 06 / t-SNE GEOMETRY</span><span class="zoomhint">ENLARGE</span></div>
+          <div class="plate-body">
+            <button class="zoom" type="button" data-zoom="images/fig6-tsne.jpg" aria-label="Open full-size figure" title="Open full-size figure">
+              <img src="images/fig6-tsne.jpg" alt="Four t-SNE panels: original training samples, after clustering-based under-sampling, in the learned feature space, and after DA-SMOTE-ED augmentation." loading="lazy">
+            </button>
+          </div>
+        </div>
+        <p class="figcap"><b>Fig. 6.</b> (a) Original space, (b) after under-sampling, (c) in the learned feature space, and (d) after DA-SMOTE-ED augmentation. The last panel keeps the classes separate while adding synthetic abnormalities.</p>
+      </div>
+      <div class="copy">
+        <span class="tag">t-SNE · four views</span>
+        <h3>Separability survives re-sampling.</h3>
+        <p>Under-sampling alone thins the majority class but does not create clean separation. The encoder changes the geometry: after projection, the classes form distinct groups. Adding DA-SMOTE-ED samples does not collapse them back together.</p>
+        <div class="pills"><span class="pill">original space</span><span class="pill">under-sampled</span><span class="pill">learned space</span><span class="pill">+ synthetic</span></div>
+      </div>
+    </div>
+
+    <div class="second-data reveal">
+      <div>
+        <div class="sd-num">92.83<small>%</small></div>
+        <p class="small" style="margin:8px 0 0">Balanced accuracy · modified C-MAPPS</p>
+        <p class="small" style="margin:4px 0 0;color:var(--green)">+6.87 pts over second place</p>
+      </div>
+      <div class="sd-copy">
+        <span class="tag">second dataset · 65.69 : 1</span>
+        <h3>Same recipe, a much rarer fault class.</h3>
+        <p>6,002 samples from 90 simulated turbofan trajectories: 5,912 normal and 90 abnormal. The method is compared under the same protocol and ranks first on TPR and balanced accuracy.</p>
+        <table class="mini-table" aria-label="Selected rows from Table XIII on C-MAPPS">
+          <thead><tr><th>Method</th><th>TPR</th><th>TNR</th><th>BA</th></tr></thead>
+          <tbody>
+            <tr class="ours"><td>DA-SMOTE-ED</td><td>92.22</td><td>93.44</td><td>92.83</td></tr>
+            <tr><td>SMOTE-ENN</td><td>77.89</td><td>94.03</td><td>85.96</td></tr>
+            <tr><td>SMOTE-Tomek</td><td>65.33</td><td>97.90</td><td>81.62</td></tr>
+            <tr><td>SMOTE</td><td>64.44</td><td>97.31</td><td>80.87</td></tr>
+          </tbody>
+        </table>
+        <p class="sweep-cap" style="margin:10px 0 0">Table XIII. Average TPR, TNR, and balanced accuracy of different anomaly detection methods on the modified version of the C-MAPPS dataset. Selected rows shown.</p>
+      </div>
+    </div>
+
+    <div class="sweep reveal">
+      <div class="sweep-head">
+        <h3>K = 90 is the chosen operating point.</h3>
+        <span>BALANCED ACCURACY · TABLE X · SELECTED ROWS</span>
+      </div>
+      <div class="sweep-grid">
+        <div class="kcell"><span class="k">K = 50</span><b>89.15</b><div class="ktrack"><div class="kfill" style="width:72%"></div></div></div>
+        <div class="kcell"><span class="k">K = 70</span><b>91.48</b><div class="ktrack"><div class="kfill" style="width:92%"></div></div></div>
+        <div class="kcell best"><span class="k">K = 90</span><b>91.77</b><div class="ktrack"><div class="kfill" style="width:100%"></div></div></div>
+        <div class="kcell"><span class="k">K = 110</span><b>90.94</b><div class="ktrack"><div class="kfill" style="width:84%"></div></div></div>
+        <div class="kcell"><span class="k">K = 150</span><b>90.65</b><div class="ktrack"><div class="kfill" style="width:81%"></div></div></div>
+      </div>
+      <p class="sweep-cap">Table X. Balanced accuracy of the developed method using different numbers of clusters. Selected K values shown; the full sweep appears in the paper. At K = 50 the method degenerates to clustering-based under-sampling.</p>
+    </div>
+  </div>
+</section>
+
+<section id="data">
+  <div class="wrap">
+    <span class="eyebrow reveal" style="--ac:var(--amber)">Data &amp; scope</span>
+    <h2 class="reveal d1">Two regimes, <span class="uline" style="--ac:var(--amber)">one honest read.</span></h2>
+    <p class="lead reveal d2">The evaluation covers a real airline fleet and a public simulated benchmark. The real data are proprietary; the C-MAPPS base is public. The paper does not release a code repository.</p>
+
+    <div class="dataset-grid">
+      <article class="dataset reveal">
+        <div class="dtag"><span>Real fleet · 2008–2015</span><b>PROPRIETARY</b></div>
+        <h3>Gas turbine monitoring data</h3>
+        <p class="dsub">One sample per flight cycle; four measurement deviations after OEM transformation.</p>
+        <div class="dcount"><b>1,017</b><span>windows total</span></div>
+        <div class="stack" aria-hidden="true"><div class="sn" style="width:93.8%"></div><div class="sa" style="width:6.2%"></div></div>
+        <div class="stack-lab"><span>954 normal · 93.8%</span><span class="red">63 abnormal · 6.2%</span></div>
+        <div class="dmeta">
+          <div><b>15.14 : 1</b><span>imbalance ratio</span></div>
+          <div><b>4 × 10</b><span>window per sample</span></div>
+          <div><b>5-fold</b><span>cross-validation</span></div>
+        </div>
+      </article>
+
+      <article class="dataset reveal d1">
+        <div class="dtag"><span>Modified N-CMAPPS · simulated</span><b>PUBLIC BASE</b></div>
+        <h3>Turbofan degradation benchmark</h3>
+        <p class="dsub">90 run-to-failure trajectories; the first post-failure window per engine is the abnormal sample.</p>
+        <div class="dcount"><b>6,002</b><span>windows total</span></div>
+        <div class="stack" aria-hidden="true"><div class="sn" style="width:98.5%"></div><div class="sa" style="width:1.5%"></div></div>
+        <div class="stack-lab"><span>5,912 normal · 98.5%</span><span class="red">90 abnormal · 1.5%</span></div>
+        <div class="dmeta">
+          <div><b>65.69 : 1</b><span>imbalance ratio</span></div>
+          <div><b>18 × 50</b><span>window per sample</span></div>
+          <div><b>5-fold</b><span>cross-validation</span></div>
+        </div>
+      </article>
+    </div>
+
+    <div class="repro-grid">
+      <div class="repro reveal">
+        <h3>Reproducibility notes</h3>
+        <div class="specs">
+          <div class="spec"><span>Framework</span><b>Python 3.9 · PyTorch 1.11</b></div>
+          <div class="spec"><span>Hardware</span><b>Intel Core i5-12400F · 16 GB</b></div>
+          <div class="spec"><span>Optimizer</span><b>Adam · lr 2e-4 · batch 128</b></div>
+          <div class="spec"><span>Clusters</span><b>K = 90</b></div>
+          <div class="spec"><span>Encoder / decoder</span><b>2 + 2 Transformer layers</b></div>
+          <div class="spec"><span>Attention</span><b>h = 4 · d_i = 32 · r = 16</b></div>
+          <div class="spec"><span>DA-SMOTE neighbours</span><b>k = 5</b></div>
+          <div class="spec"><span>Loss settings</span><b>β = 0.999 · d = 5</b></div>
+        </div>
+      </div>
+      <div class="repro reveal d1">
+        <h3>Scope, not hype</h3>
+        <ul class="limits">
+          <li><b>Binary anomaly detection.</b> The multiclass extension is presented as a derivation, not as an experimentally validated study.</li>
+          <li><b>One real fleet.</b> The turbine data come from an Asian airline; fault onsets are not precisely known and labels are tied to maintenance reports.</li>
+          <li><b>Lower TNR.</b> The method trades normal-class recall for abnormal-class recall; balanced accuracy is the headline metric, not TNR alone.</li>
+          <li><b>No released code.</b> The paper reports hyper-parameters and data sources but no public implementation link.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cite">
+  <div class="wrap">
+    <div class="closing">
+      <div class="ring" aria-hidden="true"></div>
+      <span class="eyebrow" style="--ac:var(--cyan)">Citation</span>
+      <div class="cite-grid">
+        <div class="cite-copy">
+          <h2>Cite the paper.</h2>
+          <p>Liu, Zhong, Lin, Zhao, Fu &amp; Liu. <i>Deep Attention SMOTE: Data augmentation with a learnable interpolation factor for imbalanced anomaly detection of gas turbines.</i> Computers in Industry 151 (2023) 103972.</p>
+          <div class="cite-actions">
+            <a class="btn btn-primary" href="https://doi.org/10.1016/j.compind.2023.103972" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9"/><path d="M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>
+              Open DOI
+            </a>
+            <a class="btn btn-ghost" href="S0166361523001227.bib" download="S0166361523001227.bib">Download .bib</a>
+            <a class="btn btn-ghost" href="#top">Back to top</a>
+          </div>
+        </div>
+        <div class="bib-card">
+          <div class="bib-bar"><span>BibTeX</span><button class="copybtn" id="copyBib" type="button" aria-label="Copy BibTeX to clipboard" aria-live="polite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span id="copyLabel">Copy</span></button></div>
+          <pre id="bibtex"><code>@article{LIU2023103972,
+title = {Deep attention SMOTE: Data augmentation with a learnable interpolation factor for imbalanced anomaly detection of gas turbines},
+journal = {Computers in Industry},
+volume = {151},
+pages = {103972},
+year = {2023},
+issn = {0166-3615},
+doi = {https://doi.org/10.1016/j.compind.2023.103972},
+url = {https://www.sciencedirect.com/science/article/pii/S0166361523001227},
+author = {Dan Liu and Shisheng Zhong and Lin Lin and Minghang Zhao and Xuyun Fu and Xueyun Liu},
+keywords = {Gas turbine, Imbalanced data, Inter-class overlap, Data augmentation, Anomaly detection},
+abstract = {Anomaly detection of gas turbines faces the significant challenges of data imbalance and inter-class overlap. In this paper, we develop a novel data augmentation method, namely deep attention synthetic minority over-sampling technique with the Encoder-Decoder (DA-SMOTE-ED), which serves as a key step in our hybrid re-sampling scheme. To reduce the risk of generating noise data, on one hand, the DA-SMOTE-ED leverages an Encoder-Decoder to learn a class-separable feature space to weaken the effect of inter-class overlap. On the other hand, an attention module is applied to assign proper interpolation factors to generate synthetic samples that stay off the aggregation area of normal samples. Moreover, synthetic samples are generated in the learnable feature space, mapped back to the original space, and merged with under-sampled samples to form the balanced dataset. Finally, the superiority of the developed method is validated through two case studies including the real monitoring data of gas turbines and the modified version of the commercial modular aero-propulsion system simulation (C-MAPPS) dataset. More specifically, its average balanced accuracy is 91.77 % on the gas turbine dataset, yielding 3.67 %, 6.4 %, and 5.56 % improvements compared to the SMOTE-ENN, TimeGAN, and AugmentTS, respectively.}
+}
+</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle" hidden>
+  <div class="lb-bar">
+    <span class="lb-title" id="lightboxTitle">Paper figure</span>
+    <span class="lb-hint">scroll to inspect</span>
+    <button class="lb-close" id="lightboxClose" type="button">Close</button>
+  </div>
+  <div class="lb-scroll" id="lightboxScroll"></div>
+</div>
+
+<footer>
+  <div class="wrap foot">
+    <span class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="7" cy="15" r="2.5" fill="#5b94ff"/><circle cx="17.5" cy="7" r="2.5" fill="#ff486b"/><circle cx="17" cy="17" r="2.5" fill="#2dd4ee"/><path d="M9.2 13.8 15.4 8.4M9.5 16.1l5.2.7" stroke="#a8b0c4" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </span>
+      DA-SMOTE-ED · project page
+    </span>
+    <span>Figures from the paper · <a href="https://doi.org/10.1016/j.compind.2023.103972" target="_blank" rel="noopener">Computers in Industry 151 (2023) 103972</a></span>
+  </div>
+</footer>
+
+<script>
+document.documentElement.classList.add('js');
+
+const nav = document.getElementById('nav');
+const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 24);
+onScroll();
+window.addEventListener('scroll', onScroll, {passive: true});
+
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('in');
+      io.unobserve(entry.target);
+    }
+  });
+}, {threshold: .1, rootMargin: '0px 0px -6% 0px'});
+document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+
+function fallbackCopy(text) {
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.left = '-9999px';
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(area);
+  return ok;
+}
+
+const copyBtn = document.getElementById('copyBib');
+const copyLabel = document.getElementById('copyLabel');
+if (copyBtn) {
+  copyBtn.addEventListener('click', async () => {
+    const text = document.getElementById('bibtex').innerText;
+    let ok = false;
+    if (navigator.clipboard && window.isSecureContext) {
+      try { await navigator.clipboard.writeText(text); ok = true; } catch (e) { ok = false; }
+    }
+    if (!ok) ok = fallbackCopy(text);
+    copyLabel.textContent = ok ? (window.siteI18n?.ui('copied') || 'Copied') : (window.siteI18n?.ui('select') || 'Select');
+    copyBtn.setAttribute('aria-label', ok ? (window.siteI18n?.ui('copyOk') || 'BibTeX copied to clipboard') : (window.siteI18n?.ui('copyFail') || 'Select the BibTeX text to copy'));
+    window.setTimeout(() => { copyLabel.textContent = window.siteI18n?.ui('copy') || 'Copy'; copyBtn.setAttribute('aria-label', window.siteI18n?.translate('Copy BibTeX to clipboard') || 'Copy BibTeX to clipboard'); }, 1800);
+  });
+}
+
+const lightbox = document.getElementById('lightbox');
+const lightboxScroll = document.getElementById('lightboxScroll');
+const lightboxClose = document.getElementById('lightboxClose');
+const lightboxTitle = document.getElementById('lightboxTitle');
+let zoomReturnFocus = null;
+
+function closeLightbox() {
+  if (!lightbox || lightbox.hidden) return;
+  lightbox.hidden = true;
+  lightboxScroll.replaceChildren();
+  document.body.classList.remove('lb-open');
+  if (zoomReturnFocus) zoomReturnFocus.focus();
+}
+
+function openLightbox(button) {
+  const source = button.querySelector('img');
+  if (!source || !lightbox) return;
+  zoomReturnFocus = button;
+  const labelEls = button.closest('.plate')?.querySelectorAll('.plate-bar > span');
+  lightboxTitle.textContent = labelEls && labelEls[1] ? labelEls[1].textContent.trim() : 'Paper figure';
+  const img = document.createElement('img');
+  img.src = button.dataset.zoom || source.src;
+  img.alt = source.alt || 'Paper figure';
+  img.decoding = 'async';
+  lightboxScroll.replaceChildren(img);
+  lightbox.hidden = false;
+  document.body.classList.add('lb-open');
+  lightboxClose.focus();
+}
+
+document.querySelectorAll('.zoom').forEach((button) => {
+  button.addEventListener('click', () => openLightbox(button));
+});
+if (lightbox) {
+  lightboxClose.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (event) => { if (event.target === lightbox) closeLightbox(); });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !lightbox.hidden) closeLightbox(); });
+}
+</script>
+<script src="i18n.js" defer></script>
+</body>
+</html>
